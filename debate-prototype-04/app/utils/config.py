@@ -2,9 +2,11 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 from langfuse import Langfuse
+from pathlib import Path
 
-# .env 파일에서 환경 변수 로드
-load_dotenv()
+# 상위 디렉토리의 .env 파일 로드 (ai-debate-arena/.env)
+env_path = Path(__file__).parent.parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 
 def get_llm():
