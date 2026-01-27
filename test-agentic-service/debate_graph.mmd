@@ -1,0 +1,17 @@
+%%{init: {'flowchart': {'curve': 'linear'}}}%%
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	PRO_AGENT(PRO_AGENT)
+	CON_AGENT(CON_AGENT)
+	JUDGE_AGENT(JUDGE_AGENT)
+	INCREMENT_ROUND(INCREMENT_ROUND)
+	__end__([<p>__end__</p>]):::last
+	CON_AGENT --> INCREMENT_ROUND;
+	JUDGE_AGENT --> __end__;
+	PRO_AGENT --> CON_AGENT;
+	__start__ --> PRO_AGENT;
+	INCREMENT_ROUND -.-> JUDGE_AGENT;
+	INCREMENT_ROUND -.-> PRO_AGENT;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
