@@ -108,6 +108,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
+      "python": "${workspaceFolder}/debate-prototype-07/venv/bin/python",
       "args": [
         "run",
         "${workspaceFolder}/debate-prototype-07/app/main.py",
@@ -154,6 +155,102 @@
           "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/debate-prototype-08/server"
       },
       "cwd": "${workspaceFolder}/debate-prototype-08/server"
+    },
+    {
+      "name": "🎨 Generate Graph PNG 01",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-01/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-01",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-01/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 02",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-02/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-02",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-02/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 03",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-03/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-03",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-03/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 04",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-04/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-04",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-04/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 05",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-05/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-05",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-05/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 06",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-06/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-06",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-06/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 07",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-07/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-07",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-07/app"
+      }
+    },
+    {
+      "name": "🎨 Generate Graph PNG 08",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/debate-prototype-08/app/workflow/graph.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${workspaceFolder}/debate-prototype-08",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/debate-prototype-08/app"
+      }
     }
   ]
 }

@@ -1,0 +1,20 @@
+{
+  "recommendations": [
+    // Python 개발 필수
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    
+    // AI 코드 어시스턴트 (선택)
+    "visualstudioexptteam.vscodeintellicode",
+    
+    // 추가 유용한 확장
+    "ms-python.debugpy",
+    "njpwerner.autodocstring",
+    "kevinrose.vsc-python-indent",
+    "donjayamanne.python-environment-manager",
+    
+    // 기타
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

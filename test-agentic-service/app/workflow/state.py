@@ -1,29 +1,38 @@
-# LangGraph 상태 정의 - RAG 관련 필드 추가
-from typing import Dict, List, TypedDict
+# LangGraph 상태 정의 - 여행 계획 에이전틱 서비스
+from typing import Dict, List, TypedDict, Optional
 
 
 class AgentType:
-    PRO = "PRO_AGENT"
-    CON = "CON_AGENT"
-    JUDGE = "JUDGE_AGENT"
+    SUPERVISOR = "SUPERVISOR"
+    CITY_RECOMMENDER = "CITY_RECOMMENDER"
+    FLIGHT_SEARCH = "FLIGHT_SEARCH"
+    ITINERARY_PLANNER = "ITINERARY_PLANNER"
 
     @classmethod
     def to_korean(cls, role: str) -> str:
-        if role == cls.PRO:
-            return "찬성"
-        elif role == cls.CON:
-            return "반대"
-        elif role == cls.JUDGE:
-            return "심판"
-        else:
-            return role
+        mapping = {
+            cls.SUPERVISOR: "총괄",
+            cls.CITY_RECOMMENDER: "도시 추천",
+            cls.FLIGHT_SEARCH: "항공권 검색",
+            cls.ITINERARY_PLANNER: "일정 계획",
+        }
+        return mapping.get(role, role)
 
 
-class DebateState(TypedDict):
-    topic: str
-    messages: List[Dict]
-    current_round: int
-    prev_node: str
-    max_rounds: int
-    docs: Dict[str, List]  # RAG 검색 결과
-    contexts: Dict[str, str]  # RAG 검색 컨텍스트
+class TravelState(TypedDict):
+    # 입력 정보
+    travel_theme: str  # 여행 주제
+    travel_days: Optional[int]  # 여행 일수
+    budget: Optional[int]  # 예산 (KRW)
+    departure_city: str  # 출발 도시 (기본: 서울)
+    
+    # 각 에이전트 결과
+    recommended_cities: List[Dict]  # 추천 도시 목록
+    selected_city: Optional[Dict]  # 선택된 도시
+    flight_info: Optional[Dict]  # 항공권 정보
+    itinerary: Optional[Dict]  # 여행 일정 + 예산
+    
+    # 진행 상태
+    current_step: str  # 현재 진행 단계
+    messages: List[Dict]  # 각 에이전트의 메시지 로그
+    completed: bool  # 완료 여부

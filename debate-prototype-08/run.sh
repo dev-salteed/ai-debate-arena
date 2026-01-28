@@ -7,10 +7,10 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== AI Debate Arena - Prototype 08 ===${NC}"
 
-# venv가 없으면 생성
+# venv가 없으면 생성 (Python 3.12 사용)
 if [ ! -d "venv" ]; then
-    echo -e "${GREEN}Creating virtual environment...${NC}"
-    python3 -m venv venv
+    echo -e "${GREEN}Creating virtual environment with Python 3.12...${NC}"
+    python3.12 -m venv venv
 fi
 
 # venv 활성화

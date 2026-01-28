@@ -1,0 +1,61 @@
+{
+  // Python 인터프리터 설정 (Python 3.12)
+  "python.defaultInterpreterPath": "${workspaceFolder}/debate-prototype-01/venv/bin/python3.12",
+  
+  // 자동완성 및 IntelliSense 설정
+  "python.languageServer": "None",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.completeFunctionParens": true,
+  
+  // 코드 제안 설정
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": false
+  },
+  "editor.suggestOnTriggerCharacters": true,
+  "editor.acceptSuggestionOnCommitCharacter": true,
+  "editor.acceptSuggestionOnEnter": "on",
+  "editor.tabCompletion": "on",
+  "editor.wordBasedSuggestions": "matchingDocuments",
+  "editor.inlineSuggest.enabled": true,
+  
+  // IntelliSense 트리거
+  "editor.parameterHints.enabled": true,
+  "editor.snippetSuggestions": "top",
+  
+  // Pylint/Linting 설정
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": false,
+  "python.linting.flake8Enabled": false,
+  
+  // Formatting 설정
+  "python.formatting.provider": "none",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "never"
+    }
+  },
+  
+  // Auto Save
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 1000,
+  
+  // Python 환경 설정
+  "python.terminal.activateEnvironment": true,
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/debate-prototype-01/app",
+    "${workspaceFolder}/debate-prototype-02/app",
+    "${workspaceFolder}/debate-prototype-03/app",
+    "${workspaceFolder}/debate-prototype-04/app",
+    "${workspaceFolder}/debate-prototype-05/app",
+    "${workspaceFolder}/debate-prototype-06/app",
+    "${workspaceFolder}/debate-prototype-07/app",
+    "${workspaceFolder}/debate-prototype-08/app"
+  ]
+}

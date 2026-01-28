@@ -1,92 +1,107 @@
-import streamlit as st
-from langchain.schema import Document
-from typing import List, Literal
+"""DuckDuckGo 웹 검색 서비스"""
+import logging
+import time
+from typing import List, Dict
 from duckduckgo_search import DDGS
-from langchain.schema import HumanMessage, SystemMessage
-from utils.config import get_llm
+
+# 로거 설정
+logger = logging.getLogger(__name__)
 
 
-def improve_search_query(
-    topic: str,
-    role: Literal["PRO_AGENT", "CON_AGENT", "JUDGE_AGENT"] = "JUDGE_AGENT",
-) -> List[str]:
+def search_web(query: str, max_results: int = 5, retry: int = 2) -> List[Dict[str, str]]:
+    """
+    DuckDuckGo를 사용하여 웹 검색 (재시도 로직 포함)
+    
+    Args:
+        query: 검색 쿼리
+        max_results: 최대 결과 수
+        retry: 재시도 횟수
+        
+    Returns:
+        검색 결과 리스트 [{"title": "제목", "body": "내용", "href": "URL"}]
+    """
+    logger.info(f"[RAG 검색 시작] 쿼리: {query}, 최대 결과: {max_results}")
+    
+    for attempt in range(retry + 1):
+        try:
+            # Rate limit 방지를 위한 딜레이
+            if attempt > 0:
+                delay = 2 ** attempt  # 지수 백오프: 2초, 4초
+                logger.info(f"[재시도 {attempt}/{retry}] {delay}초 대기 중...")
+                time.sleep(delay)
+            
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=max_results))
+                
+            logger.info(f"[RAG 검색 완료] {len(results)}개 결과 반환")
+            
+            # 결과 포맷팅
+            formatted_results = []
+            for i, result in enumerate(results, 1):
+                formatted = {
+                    "title": result.get("title", ""),
+                    "body": result.get("body", ""),
+                    "href": result.get("href", "")
+                }
+                formatted_results.append(formatted)
+                logger.debug(f"  [{i}] {formatted['title'][:50]}...")
+            
+            return formatted_results
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "Ratelimit" in error_msg and attempt < retry:
+                logger.warning(f"[RAG 검색 Rate Limit] 재시도 예정... ({attempt + 1}/{retry})")
+                continue
+            else:
+                logger.error(f"[RAG 검색 오류] {error_msg}")
+                return []
+    
+    logger.error("[RAG 검색 실패] 모든 재시도 실패")
+    return []
 
-    template = "'{topic}'에 대해 {perspective} 웹검색에 적합한 3개의 검색어를 제안해주세요. 각 검색어는 25자 이내로 작성하고 콤마로 구분하세요. 검색어만 제공하고 설명은 하지 마세요."
 
-    perspective_map = {
-        "PRO_AGENT": "찬성하는 입장을 뒷받침할 수 있는 사실과 정보를 찾고자 합니다.",
-        "CON_AGENT": "반대하는 입장을 뒷받침할 수 있는 사실과 정보를 찾고자 합니다.",
-        "JUDGE_AGENT": "객관적인 사실과 정보를 찾고자 합니다.",
-    }
+def format_search_results(results: List[Dict[str, str]]) -> str:
+    """
+    검색 결과를 컨텍스트 문자열로 포맷팅
+    
+    Args:
+        results: 검색 결과 리스트
+        
+    Returns:
+        포맷팅된 컨텍스트 문자열
+    """
+    if not results:
+        return ""
+    
+    context = "\n\n=== 검색 결과 ===\n\n"
+    
+    for i, result in enumerate(results, 1):
+        context += f"[{i}] {result['title']}\n"
+        context += f"{result['body']}\n"
+        if result['href']:
+            context += f"출처: {result['href']}\n"
+        context += "\n"
+    
+    return context
 
-    prompt = template.format(topic=topic, perspective=perspective_map[role])
 
-    messages = [
-        SystemMessage(
-            content="당신은 검색 전문가입니다. 주어진 주제에 대해 가장 관련성 높은 검색어를 제안해주세요."
-        ),
-        HumanMessage(content=prompt),
-    ]
-
-    # 스트리밍 응답 받기
-    response = get_llm().invoke(messages)
-
-    # ,로 구분된 검색어 추출
-    suggested_queries = [q.strip() for q in response.content.split(",")]
-
-    return suggested_queries[:3]
-
-
-def get_search_content(
-    improved_queries: str,
-    language: str = "ko",
-    max_results: int = 5,
-) -> List[Document]:
-
-    try:
-        documents = []
-
-        ddgs = DDGS()
-
-        # 각 개선된 검색어에 대해 검색 수행
-        for query in improved_queries:
-            try:
-                # 검색 수행
-                results = ddgs.text(
-                    query,
-                    region=language,
-                    safesearch="moderate",
-                    timelimit="y",  # 최근 1년 내 결과
-                    max_results=max_results,
-                )
-
-                if not results:
-                    continue
-
-                # 검색 결과 처리
-                for result in results:
-                    title = result.get("title", "")
-                    body = result.get("body", "")
-                    url = result.get("href", "")
-
-                    if body:
-                        documents.append(
-                            Document(
-                                page_content=body,
-                                metadata={
-                                    "source": url,
-                                    "section": "content",
-                                    "topic": title,
-                                    "query": query,
-                                },
-                            )
-                        )
-
-            except Exception as e:
-                st.warning(f"검색 중 오류 발생: {str(e)}")
-
-        return documents
-
-    except Exception as e:
-        st.error(f"검색 서비스 오류 발생: {str(e)}")
-        return []
+def search_with_context(query: str, max_results: int = 5) -> str:
+    """
+    웹 검색 후 컨텍스트 문자열 반환
+    
+    Args:
+        query: 검색 쿼리
+        max_results: 최대 결과 수
+        
+    Returns:
+        포맷팅된 검색 결과 컨텍스트
+    """
+    logger.info(f"[컨텍스트 검색] 쿼리: {query}")
+    
+    results = search_web(query, max_results)
+    context = format_search_results(results)
+    
+    logger.info(f"[컨텍스트 생성 완료] 길이: {len(context)} 문자")
+    
+    return context

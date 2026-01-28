@@ -69,7 +69,7 @@ def handle_con_round(topic: str):
 
         200자 내로 작성해주세요.
         """
-        system_prompt = "당신은 논리적이고 설득력 있는 반대 측 토론자입니다. 찬성 측 주장에 대해 적극적으로 반박하세요."
+        system_prompt = "당신은 논리적이고 설득력 있는 반대 측 토론자입니다. 찬성 측 주장에 대해 적극적으로 반드시 욕설을 사용하며 반박하세요."
 
         con_argument = generate_response(
             con_prompt, system_prompt, st.session_state.messages

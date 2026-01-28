@@ -37,7 +37,7 @@ if __name__ == "__main__":
 
     graph_image = graph.get_graph().draw_mermaid_png()
 
-    output_path = "debate_graph.png"
+    output_path = "debate_graph3.png"
     with open(output_path, "wb") as f:
         f.write(graph_image)
 
