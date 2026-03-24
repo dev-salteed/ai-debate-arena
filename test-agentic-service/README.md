@@ -11,7 +11,7 @@
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
 | LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | - |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
-| 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`), Docker 실행 환경 | - |
+| 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | - |
 
 ### 근거 코드 위치
 - Prompt/Agent: `app/workflow/agents/*`
@@ -24,7 +24,6 @@
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [x] P2 ReAct: Tool 실행 흐름 포맷 표준화
-- [x] P3 Docker(선택): Streamlit + FastAPI 실행 환경
 
 ## 주요 기능
 
@@ -114,16 +113,6 @@ uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
 - `GET /api/health`
 - `POST /api/plan`
 
-### 2-2. Docker 실행 (선택)
-
-```bash
-docker compose up --build
-```
-
-접속:
-- Streamlit: `http://localhost:8501`
-- FastAPI: `http://localhost:8000`
-
 ### 3. 벡터DB 인덱스 빌드 (권장)
 
 하이브리드 RAG는 로컬 FAISS 인덱스가 있을 때 벡터 검색을 우선 사용합니다.
@@ -184,8 +173,6 @@ test-agentic-service/
 │       ├── config.py              # LLM 설정
 │       └── logger.py              # 로깅 유틸리티
 ├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
 ├── run.sh
 └── README.md
 ```
