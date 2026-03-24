@@ -277,7 +277,19 @@ test-agentic-service/
 - [ ] 병렬 처리 지원
 - [ ] 데이터베이스 연동 (여행 기록 저장)
 - [ ] 더 복잡한 Supervisor 로직 (조건부 분기)
-- [ ] RAG 벡터 DB 추가 (FAISS, Pinecone)
+- [ ] RAG 고도화 (재랭킹, Pinecone 등 외부 벡터 스토어 확장)
+
+## 문서 정합성 정리 (추가/삭제)
+
+### 추가
+- [x] Flight 단계 `search_flight_context` tool observation 연동 근거
+- [x] LangGraph `MemorySaver`/`InMemoryStore` + UI `thread_id` 멀티턴 범위
+- [x] 평가 체크포인트 대응 섹션(근거 파일 + known limitation)
+
+### 삭제/수정
+- [x] 과거 구현과 불일치한 Tool Calling 미적용 뉘앙스 문구 제거
+- [x] 실제와 다른 테스트 수치(22 tests) -> 28 tests로 정정
+- [x] 이미 구현된 FAISS를 "추가 예정"으로 표기한 항목 수정
 
 ## 라이선스
 

@@ -119,6 +119,16 @@
 3. Multi-Agent 설명: Supervisor 중심 순차 협업 구조임을 명시
 4. 맥락 유지/멀티턴: MemorySaver/InMemoryStore + UI thread_id 연속 실행 적용
 
+### **2.8 문서 정합성 정리 (README 대비)**
+- 추가:
+  - Flight 단계 `search_flight_context` 통합 근거 문구
+  - UI 멀티턴 범위(`thread_id`)와 API 단발 처리 경계
+  - 평가 체크포인트 대응 항목별 근거/한계
+- 삭제/수정:
+  - Tool Calling 미적용으로 오해될 수 있는 과거 문구 제거
+  - 테스트 수치 22 -> 28로 정정
+  - 이미 구현된 FAISS를 "추가 예정"으로 해석될 표현 정리
+
 ## **4. 실행 결과 업데이트**
 - Streamlit UI에서 입력(여행 주제/일수/예산/출발지) 후 Multi-Agent 파이프라인이 end-to-end로 동작한다.
 - FastAPI 경유 실행(`POST /api/plan`)도 동일 워크플로우로 처리된다(단발 호출).
