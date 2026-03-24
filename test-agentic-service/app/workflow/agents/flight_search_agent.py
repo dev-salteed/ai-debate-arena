@@ -5,7 +5,7 @@ from typing import Dict
 from langchain_core.messages import HumanMessage, SystemMessage
 from utils.config import get_llm
 from utils.logger import setup_logger, log_agent_input, log_agent_output
-from retrieval.search_service import search_web_tool
+from retrieval.search_service import search_flight_context_tool
 from workflow.state import TravelState, AgentType
 from workflow.agents.tool_runner import invoke_with_tool_calls
 from workflow.agents.response_guard import parse_json, missing_required_keys
@@ -99,7 +99,7 @@ Few-shot 예시:
         rag_instruction = ""
         if self.enable_rag:
             rag_instruction = (
-                "최신 운항/가격 정보가 필요하면 search_web 도구를 1회 이상 호출해 확인하세요."
+                "최신 운항/가격 정보가 필요하면 search_flight_context 도구를 1회 이상 호출해 확인하세요."
             )
         else:
             rag_instruction = "도구를 사용하지 말고 일반적인 항공권 가격을 고려해 추천해주세요."
@@ -109,11 +109,12 @@ Few-shot 예시:
         # LLM + Tool 호출
         self.logger.info(f"[LLM] 호출 시작 (프롬프트 길이: {len(prompt)} 문자)")
         if self.enable_rag:
-            response_text = invoke_with_tool_calls(
+            response_text, search_context = invoke_with_tool_calls(
                 system_prompt=system_prompt,
                 user_prompt=prompt,
-                tools=[search_web_tool],
+                tools=[search_flight_context_tool],
                 logger=self.logger,
+                return_last_observation=True,
             )
         else:
             messages = [
@@ -124,6 +125,8 @@ Few-shot 예시:
             response_text = response.content.strip()
 
         self.logger.info(f"[LLM] 응답 받음 (길이: {len(response_text)} 문자)")
+        if search_context:
+            self.logger.info(f"[RAG] tool observation 연동 길이: {len(search_context)} 문자")
         
         # JSON 파싱 + 누락 키 보정 1회
         try:
@@ -260,7 +263,7 @@ Few-shot 예시:
                 f"서울 {selected_city.get('city', '')} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
             )
             prompt += (
-                "웹 검색이 필요하면 search_web 도구를 사용하세요.\n"
+                "항공권 맥락 검색이 필요하면 search_flight_context 도구를 사용하세요.\n"
                 f"권장 검색어: {tool_query}\n"
             )
         elif search_context:

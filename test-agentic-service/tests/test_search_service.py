@@ -11,6 +11,7 @@ if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from retrieval.search_service import (
+    search_flight_context_tool,
     merge_contexts,
     search_city_context_tool,
     search_with_context,
@@ -31,6 +32,20 @@ class SearchServiceTests(unittest.TestCase):
             max_results=4,
         )
         self.assertEqual(result, "도시 컨텍스트 결과")
+
+    @patch("retrieval.search_service.search_with_context")
+    def test_flight_context_tool_calls_hybrid_search(self, mock_search_with_context):
+        mock_search_with_context.return_value = "항공권 컨텍스트 결과"
+
+        result = search_flight_context_tool.invoke(
+            {"query": "서울 도쿄 항공권 운항 여부", "max_results": 3}
+        )
+
+        mock_search_with_context.assert_called_once_with(
+            query="서울 도쿄 항공권 운항 여부",
+            max_results=3,
+        )
+        self.assertEqual(result, "항공권 컨텍스트 결과")
 
     @patch("retrieval.search_service.search_web")
     @patch("retrieval.search_service.retrieve_with_vector")

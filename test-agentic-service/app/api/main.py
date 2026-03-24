@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
+import uuid
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
@@ -60,6 +61,9 @@ def create_plan(payload: TravelPlanRequest) -> TravelPlanResponse:
     )
 
     graph = create_travel_graph(enable_rag=payload.enable_rag)
-    result = graph.invoke(initial_state)
+    thread_id = f"api-{uuid.uuid4()}"
+    result = graph.invoke(
+        initial_state,
+        config={"configurable": {"thread_id": thread_id}},
+    )
     return TravelPlanResponse(status="ok", result=result)
-

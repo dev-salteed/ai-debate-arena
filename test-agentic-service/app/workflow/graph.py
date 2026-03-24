@@ -5,6 +5,13 @@ from workflow.agents.itinerary_agent import ItineraryAgent
 from workflow.agents.supervisor_agent import SupervisorAgent
 from workflow.state import TravelState, AgentType
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.store.memory import InMemoryStore
+
+
+_CHECKPOINTER = MemorySaver()
+_STORE = InMemoryStore()
+_GRAPH_CACHE = {}
 
 
 def create_travel_graph(enable_rag: bool = True):
@@ -15,6 +22,10 @@ def create_travel_graph(enable_rag: bool = True):
         enable_rag: RAG 활성화 여부
     """
     
+    cache_key = f"travel_graph_rag_{enable_rag}"
+    if cache_key in _GRAPH_CACHE:
+        return _GRAPH_CACHE[cache_key]
+
     # 그래프 생성
     workflow = StateGraph(TravelState)
     
@@ -51,7 +62,14 @@ def create_travel_graph(enable_rag: bool = True):
     workflow.set_entry_point(AgentType.SUPERVISOR)
     
     # 그래프 컴파일
-    return workflow.compile()
+    compiled = workflow.compile(checkpointer=_CHECKPOINTER, store=_STORE)
+    _GRAPH_CACHE[cache_key] = compiled
+    return compiled
+
+
+def get_graph_runtime_components():
+    """테스트/문서 검증용 런타임 구성요소 반환."""
+    return _CHECKPOINTER, _STORE
 
 
 if __name__ == "__main__":

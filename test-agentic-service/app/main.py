@@ -1,9 +1,9 @@
 """저기어때 - 여행 계획 에이전틱 서비스"""
 import streamlit as st
 import logging
+import uuid
 from workflow.graph import create_travel_graph
 from workflow.state import TravelState, AgentType
-from utils.logger import setup_logger
 
 
 # 로깅 설정
@@ -22,6 +22,72 @@ def initialize_state():
         st.session_state.messages = []
     if "logs" not in st.session_state:
         st.session_state.logs = []
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = None
+    if "continued_last_run" not in st.session_state:
+        st.session_state.continued_last_run = False
+    if "workflow_graph" not in st.session_state:
+        st.session_state.workflow_graph = None
+    if "workflow_graph_rag" not in st.session_state:
+        st.session_state.workflow_graph_rag = None
+
+
+def build_initial_state(
+    travel_theme: str,
+    travel_days: int,
+    budget: int,
+    departure_city: str,
+) -> TravelState:
+    """새 계획 생성용 초기 상태."""
+    return TravelState(
+        travel_theme=travel_theme,
+        travel_days=travel_days if travel_days > 0 else None,
+        budget=budget if budget > 0 else None,
+        departure_city=departure_city,
+        recommended_cities=[],
+        selected_city=None,
+        selected_city_index=0,
+        flight_info=None,
+        flight_available=False,
+        flight_unavailability_reason=None,
+        flight_search_attempts=0,
+        max_flight_search_attempts=3,
+        itinerary=None,
+        decision_memory=[],
+        constraints_memory={},
+        current_step="",
+        messages=[],
+        completed=False,
+    )
+
+
+def build_continued_state(
+    previous_state: TravelState,
+    travel_theme: str,
+    travel_days: int,
+    budget: int,
+    departure_city: str,
+) -> TravelState:
+    """이전 상태를 기반으로 입력 조건을 반영해 재실행 상태를 만든다."""
+    continued = dict(previous_state)
+    continued["travel_theme"] = travel_theme
+    continued["travel_days"] = travel_days if travel_days > 0 else None
+    continued["budget"] = budget if budget > 0 else None
+    continued["departure_city"] = departure_city
+    continued["current_step"] = ""
+    continued["completed"] = False
+    return continued
+
+
+def get_or_create_workflow_graph(enable_rag: bool):
+    """RAG 모드별 그래프를 세션에 캐시한다."""
+    if (
+        st.session_state.workflow_graph is None
+        or st.session_state.workflow_graph_rag != enable_rag
+    ):
+        st.session_state.workflow_graph = create_travel_graph(enable_rag=enable_rag)
+        st.session_state.workflow_graph_rag = enable_rag
+    return st.session_state.workflow_graph
 
 
 def main():
@@ -80,6 +146,13 @@ def main():
                 value=True,
                 help="외부 지식을 검색하여 여행 계획에 활용합니다."
             )
+
+            continue_mode = st.checkbox(
+                "이어서 계획 수정/재실행",
+                value=False,
+                disabled=st.session_state.travel_plan is None,
+                help="동일 thread_id로 이전 실행 맥락을 이어서 다시 계획합니다.",
+            )
             
             submitted = st.form_submit_button("여행 계획 시작", use_container_width=True)
         
@@ -131,32 +204,35 @@ def main():
                     logging.info(f"여행 계획 생성 시작")
                     logging.info(f"주제: {travel_theme}, 일수: {travel_days}일, RAG: {rag_status}")
                     logging.info(f"{'='*60}")
-                    
-                    # 초기 상태 구성
-                    initial_state = TravelState(
-                        travel_theme=travel_theme,
-                        travel_days=travel_days if travel_days > 0 else None,
-                        budget=budget if budget > 0 else None,
-                        departure_city=departure_city,
-                        recommended_cities=[],
-                        selected_city=None,
-                        selected_city_index=0,
-                        flight_info=None,
-                        flight_available=False,
-                        flight_unavailability_reason=None,
-                        flight_search_attempts=0,
-                        max_flight_search_attempts=3,
-                        itinerary=None,
-                        decision_memory=[],
-                        constraints_memory={},
-                        current_step="",
-                        messages=[],
-                        completed=False,
-                    )
-                    
+
+                    # 초기/연속 실행 상태 구성
+                    if continue_mode and st.session_state.travel_plan:
+                        thread_id = st.session_state.thread_id or str(uuid.uuid4())
+                        initial_state = build_continued_state(
+                            previous_state=st.session_state.travel_plan,
+                            travel_theme=travel_theme,
+                            travel_days=travel_days,
+                            budget=budget,
+                            departure_city=departure_city,
+                        )
+                        st.session_state.continued_last_run = True
+                    else:
+                        thread_id = str(uuid.uuid4())
+                        initial_state = build_initial_state(
+                            travel_theme=travel_theme,
+                            travel_days=travel_days,
+                            budget=budget,
+                            departure_city=departure_city,
+                        )
+                        st.session_state.continued_last_run = False
+                    st.session_state.thread_id = thread_id
+
                     # 그래프 생성 및 실행
-                    graph = create_travel_graph(enable_rag=enable_rag)
-                    final_state = graph.invoke(initial_state)
+                    graph = get_or_create_workflow_graph(enable_rag=enable_rag)
+                    final_state = graph.invoke(
+                        initial_state,
+                        config={"configurable": {"thread_id": thread_id}},
+                    )
                     
                     logging.info(f"{'='*60}")
                     logging.info(f"여행 계획 생성 완료!")
@@ -182,6 +258,11 @@ def main():
         
         st.markdown("---")
         st.markdown("## 📋 여행 계획 결과")
+        if st.session_state.thread_id:
+            continued_text = "예" if st.session_state.continued_last_run else "아니오"
+            st.caption(
+                f"Thread ID: `{st.session_state.thread_id}` | 연속 실행: {continued_text}"
+            )
         
         # 1. 추천 도시
         st.markdown("### 🌍 추천 여행 도시")
@@ -260,6 +341,8 @@ def main():
         if st.button("새로운 여행 계획하기", use_container_width=True):
             st.session_state.travel_plan = None
             st.session_state.messages = []
+            st.session_state.thread_id = None
+            st.session_state.continued_last_run = False
             st.rerun()
     
     else:

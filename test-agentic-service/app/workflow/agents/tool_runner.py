@@ -1,7 +1,7 @@
 """Tool binding 기반 LLM 실행 유틸리티."""
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple, Union
 import logging
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -38,7 +38,8 @@ def invoke_with_tool_calls(
     tools: List[BaseTool],
     logger: Optional[logging.Logger] = None,
     max_iterations: int = 3,
-) -> str:
+    return_last_observation: bool = False,
+) -> Union[str, Tuple[str, str]]:
     """LLM에 도구를 바인딩해 tool call 루프를 수행하고 최종 텍스트를 반환한다."""
     messages = [
         SystemMessage(content=system_prompt),
@@ -48,10 +49,14 @@ def invoke_with_tool_calls(
 
     if not tools:
         response = get_llm().invoke(messages)
-        return _content_to_text(response.content).strip()
+        final_text = _content_to_text(response.content).strip()
+        if return_last_observation:
+            return final_text, ""
+        return final_text
 
     llm = get_llm().bind_tools(tools)
     tools_by_name = {tool.name: tool for tool in tools}
+    last_observation = ""
 
     for _ in range(max_iterations):
         response = llm.invoke(messages)
@@ -59,7 +64,10 @@ def invoke_with_tool_calls(
 
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
-            return _content_to_text(response.content).strip()
+            final_text = _content_to_text(response.content).strip()
+            if return_last_observation:
+                return final_text, last_observation
+            return final_text
 
         if logger:
             logger.info(f"[ReAct] iteration start tool_calls={len(tool_calls)}")
@@ -85,6 +93,7 @@ def invoke_with_tool_calls(
                     f"[ReAct] action={tool_name} args={tool_args} "
                     f"observation_len={len(str(tool_result))}"
                 )
+            last_observation = str(tool_result)
 
             messages.append(
                 ToolMessage(
@@ -96,4 +105,7 @@ def invoke_with_tool_calls(
 
     # 최대 루프 후에도 종료되지 않으면 마지막으로 한 번 더 답변 시도
     final_response = llm.invoke(messages)
-    return _content_to_text(final_response.content).strip()
+    final_text = _content_to_text(final_response.content).strip()
+    if return_last_observation:
+        return final_text, last_observation
+    return final_text

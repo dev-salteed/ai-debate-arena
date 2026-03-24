@@ -15,7 +15,7 @@ from api.main import app
 
 
 class _FakeGraph:
-    def invoke(self, state):
+    def invoke(self, state, config=None):
         state = dict(state)
         state["completed"] = True
         state["current_step"] = "ITINERARY_PLANNER"
@@ -62,4 +62,3 @@ class ApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

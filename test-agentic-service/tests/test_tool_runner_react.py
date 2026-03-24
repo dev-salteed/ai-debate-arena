@@ -81,7 +81,37 @@ class ToolRunnerReactTests(unittest.TestCase):
         self.assertEqual(first_messages[0].content, "테스트 시스템 프롬프트")
         self.assertIn("ReAct", first_messages[1].content)
 
+    @patch("workflow.agents.tool_runner.get_llm")
+    def test_returns_last_observation_when_requested(self, mock_get_llm):
+        fake_llm = _FakeLLM(
+            [
+                _FakeAIResponse(
+                    content="도구 호출 필요",
+                    tool_calls=[
+                        {
+                            "id": "call-1",
+                            "name": "search_web",
+                            "args": {"query": "오슬로 항공권"},
+                        }
+                    ],
+                ),
+                _FakeAIResponse(content='{"ok":true}'),
+            ]
+        )
+        mock_get_llm.return_value = fake_llm
+
+        final_text, last_observation = invoke_with_tool_calls(
+            system_prompt="테스트 시스템 프롬프트",
+            user_prompt="항공권 검색",
+            tools=[_FakeTool()],
+            logger=logging.getLogger("test_tool_runner_observation"),
+            max_iterations=3,
+            return_last_observation=True,
+        )
+
+        self.assertIn('"ok":true', final_text)
+        self.assertIn("tool_result_for:오슬로 항공권", last_observation)
+
 
 if __name__ == "__main__":
     unittest.main()
-
