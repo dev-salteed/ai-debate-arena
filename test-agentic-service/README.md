@@ -82,7 +82,17 @@ pip install -r requirements.txt
 streamlit run app/main.py
 ```
 
-### 3. 그래프 시각화
+### 3. 벡터DB 인덱스 빌드 (권장)
+
+하이브리드 RAG는 로컬 FAISS 인덱스가 있을 때 벡터 검색을 우선 사용합니다.
+
+```bash
+python -m app.retrieval.build_index --reset
+```
+
+인덱스가 없거나 로드에 실패하면 자동으로 웹 검색(DuckDuckGo) fallback이 동작합니다.
+
+### 4. 그래프 시각화
 
 ```bash
 python app/workflow/graph.py
@@ -113,7 +123,11 @@ test-agentic-service/
 │   ├── main.py                     # Streamlit 앱
 │   ├── retrieval/                  # RAG 시스템
 │   │   ├── __init__.py
-│   │   └── search_service.py      # DuckDuckGo 검색
+│   │   ├── search_service.py      # 하이브리드 검색 (Vector + Web)
+│   │   ├── vector_store.py        # FAISS 로드/검색
+│   │   ├── knowledge_loader.py    # 지식 데이터 로딩/청킹
+│   │   ├── build_index.py         # 인덱스 빌드 스크립트
+│   │   └── data/                  # 로컬 지식 데이터셋
 │   ├── workflow/
 │   │   ├── state.py               # TravelState 정의
 │   │   ├── graph.py               # LangGraph 워크플로우
@@ -165,6 +179,17 @@ test-agentic-service/
    - 쿼리: "{도시명} {여행 주제} 여행 일정 추천 명소 맛집"
    - 최대 4개 검색 결과 수집
    - 실제 명소와 맛집 정보를 반영한 일정 생성
+
+### 하이브리드 RAG 모드
+
+- `RAG_MODE=hybrid` (기본): 벡터 검색 우선, 결과가 부족하면 웹 검색 보조
+- `RAG_MODE=vector`: 벡터 검색 시도, 결과 부족/인덱스 미존재 시 웹 검색 fallback
+- `RAG_MODE=web`: 웹 검색만 사용
+
+추가 환경 변수:
+
+- `VECTOR_TOP_K` (기본: `4`)
+- `WEB_FALLBACK_MIN_RESULTS` (기본: `2`)
 
 ### 로깅 기능
 - 각 에이전트의 입력/출력 로깅
