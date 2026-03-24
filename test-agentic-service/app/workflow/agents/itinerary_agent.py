@@ -6,6 +6,7 @@ from utils.logger import setup_logger, log_agent_input, log_agent_output
 from retrieval.search_service import search_web_tool
 from workflow.state import TravelState, AgentType
 from workflow.agents.tool_runner import invoke_with_tool_calls
+from workflow.agents.response_guard import parse_json, missing_required_keys
 
 
 class ItineraryAgent:
@@ -21,8 +22,28 @@ class ItineraryAgent:
 
 {rag_instruction}
 
+Few-shot 예시:
+입력: 여행지=도쿄, 여행일수=3일, 항공권=420000
+출력:
+{{
+  "rationale": "동선 밀집도와 식사 피크 시간 회피를 기준으로 일정과 예산을 구성했습니다.",
+  "itinerary": [
+    {{"day": 1, "plan": "도착 후 체크인 및 근거리 산책"}},
+    {{"day": 2, "plan": "핵심 명소 2곳 + 저녁 미식 코스"}},
+    {{"day": 3, "plan": "체크아웃 전 가벼운 일정 후 공항 이동"}}
+  ],
+  "budget_breakdown": {{
+    "flight": 420000,
+    "accommodation": 480000,
+    "food": 240000,
+    "others": 160000,
+    "total": 1300000
+  }}
+}}
+
 응답은 반드시 다음 JSON 형식으로 작성하세요:
 {{
+  "rationale": "일정/예산 구성 근거 한 문장",
   "itinerary": [
     {{"day": 1, "plan": "첫날 일정 설명"}},
     {{"day": 2, "plan": "둘째날 일정 설명"}}
@@ -41,6 +62,8 @@ class ItineraryAgent:
 - 모든 금액은 숫자로 입력하세요 (KRW 단위)
 - total은 flight + accommodation + food + others의 합계여야 합니다
 - 각 day의 plan은 구체적이고 실현 가능한 일정으로 작성하세요
+- 입력이 모호하거나 부족하면 합리적 가정을 `rationale`에 명시하세요
+- 필수 키 누락 시 JSON을 1회 자가 보정해 완전한 형태로 출력하세요
 """
 
     def run(self, state: TravelState) -> TravelState:
@@ -82,22 +105,21 @@ class ItineraryAgent:
 
         self.logger.info(f"[LLM] 응답 받음 (길이: {len(response_text)} 문자)")
         
-        # JSON 파싱
+        # JSON 파싱 + 누락 키 보정 1회
         try:
-            # JSON 블록 추출
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-            
+            result, cleaned_text = parse_json(response_text)
+            missing = missing_required_keys(result, ["itinerary", "budget_breakdown", "rationale"])
+            if missing:
+                self.logger.warning(f"[파싱] 필수 키 누락 감지: {missing}, 보정 1회 시도")
+                repaired_text = self._repair_json_once(cleaned_text, missing)
+                result, _ = parse_json(repaired_text)
+
             self.logger.info("[파싱] JSON 추출 완료")
-            result = json.loads(response_text)
             itinerary_data = result
-            
             itinerary = itinerary_data.get("itinerary", [])
             budget = itinerary_data.get("budget_breakdown", {})
             self.logger.info(f"[파싱] 일정 {len(itinerary)}일, 총 예산 {budget.get('total', 0):,}원 추출 성공")
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, ValueError) as e:
             self.logger.error(f"[파싱 오류] {e}")
             self.logger.error(f"응답: {response_text[:200]}...")
             itinerary_data = {}
@@ -164,3 +186,20 @@ class ItineraryAgent:
 """
         
         return prompt
+
+    def _repair_json_once(self, broken_json: str, missing_keys: list[str]) -> str:
+        """누락된 필수 키를 보정하기 위해 LLM에 JSON 리페어를 1회 요청한다."""
+        repair_system = (
+            "당신은 JSON 리페어 도우미입니다. "
+            "반드시 유효한 JSON만 출력하고 설명문은 금지합니다."
+        )
+        repair_prompt = f"""다음 JSON 응답에서 필수 키를 보정하세요.
+필수 키: {", ".join(missing_keys)}
+
+원본:
+{broken_json}
+"""
+        response = get_llm().invoke(
+            [SystemMessage(content=repair_system), HumanMessage(content=repair_prompt)]
+        )
+        return str(response.content).strip()

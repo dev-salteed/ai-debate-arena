@@ -6,6 +6,7 @@ from utils.logger import setup_logger, log_agent_input, log_agent_output
 from retrieval.search_service import search_web_tool
 from workflow.state import TravelState, AgentType
 from workflow.agents.tool_runner import invoke_with_tool_calls
+from workflow.agents.response_guard import parse_json, missing_required_keys
 
 
 class CityRecommenderAgent:
@@ -21,8 +22,31 @@ class CityRecommenderAgent:
 
 {rag_instruction}
 
+Few-shot 예시 1:
+입력: 여행 주제=미식 여행, 여행 일수=4일, 예산=1500000
+출력:
+{{
+  "rationale": "겨울 미식 접근성과 이동 동선을 고려해 단거리 도시를 우선 추천했습니다.",
+  "recommended_cities": [
+    {{"city": "도쿄", "country": "일본", "reason": "시장/이자카야 중심 미식 동선이 좋습니다."}},
+    {{"city": "오사카", "country": "일본", "reason": "현지 음식 밀집 지역이 풍부합니다."}}
+  ]
+}}
+
+Few-shot 예시 2:
+입력: 여행 주제=휴양, 여행 일수=5일, 예산=2000000
+출력:
+{{
+  "rationale": "휴양 중심과 예산 균형을 기준으로 해변 접근성이 높은 도시를 골랐습니다.",
+  "recommended_cities": [
+    {{"city": "발리", "country": "인도네시아", "reason": "휴양/스파/리조트 선택지가 넓습니다."}},
+    {{"city": "푸켓", "country": "태국", "reason": "비용 대비 해변 품질이 우수합니다."}}
+  ]
+}}
+
 응답은 반드시 다음 JSON 형식으로 작성하세요:
 {{
+  "rationale": "추천 근거 한 문장",
   "recommended_cities": [
     {{
       "city": "도시명",
@@ -36,6 +60,8 @@ class CityRecommenderAgent:
 - 정확한 JSON 형식을 유지하세요
 - 2~3개의 도시만 추천하세요
 - 각 도시의 추천 이유는 구체적이고 명확하게 작성하세요
+- 입력이 모호하거나 부족하면, 합리적 가정을 짧게 `rationale`에 포함하세요
+- 필수 키가 누락되면 스스로 JSON을 1회 보정해서 완전한 형식으로 응답하세요
 """
 
     def run(self, state: TravelState) -> TravelState:
@@ -77,19 +103,20 @@ class CityRecommenderAgent:
 
         self.logger.info(f"[LLM] 응답 받음 (길이: {len(response_text)} 문자)")
         
-        # JSON 파싱
+        # JSON 파싱 + 누락 키 보정 1회
         try:
-            # JSON 블록 추출 (```json ... ``` 제거)
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
-            
+            result, cleaned_text = parse_json(response_text)
+            missing = missing_required_keys(result, ["recommended_cities", "rationale"])
+
+            if missing:
+                self.logger.warning(f"[파싱] 필수 키 누락 감지: {missing}, 보정 1회 시도")
+                repaired_text = self._repair_json_once(cleaned_text, missing)
+                result, _ = parse_json(repaired_text)
+
             self.logger.info("[파싱] JSON 추출 완료")
-            result = json.loads(response_text)
             recommended_cities = result.get("recommended_cities", [])
             self.logger.info(f"[파싱] {len(recommended_cities)}개 도시 추출 성공")
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, ValueError) as e:
             self.logger.error(f"[파싱 오류] {e}")
             self.logger.error(f"응답: {response_text[:200]}...")
             recommended_cities = []
@@ -138,3 +165,20 @@ class CityRecommenderAgent:
         prompt += "\n위 조건에 맞는 해외 여행 도시를 추천해주세요."
         
         return prompt
+
+    def _repair_json_once(self, broken_json: str, missing_keys: list[str]) -> str:
+        """누락된 필수 키를 보정하기 위해 LLM에 JSON 리페어를 1회 요청한다."""
+        repair_system = (
+            "당신은 JSON 리페어 도우미입니다. "
+            "반드시 유효한 JSON만 출력하고 설명문은 금지합니다."
+        )
+        repair_prompt = f"""다음 JSON 응답에서 필수 키를 보정하세요.
+필수 키: {", ".join(missing_keys)}
+
+원본:
+{broken_json}
+"""
+        response = get_llm().invoke(
+            [SystemMessage(content=repair_system), HumanMessage(content=repair_prompt)]
+        )
+        return str(response.content).strip()

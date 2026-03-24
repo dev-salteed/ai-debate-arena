@@ -8,7 +8,7 @@
 
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
-| Prompt Engineering | 부분 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제 | Few-shot 예시, CoT/추론 단계 구조화, 실패 시 일관성 보정 템플릿 |
+| Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
 | LangChain/LangGraph Agent | 부분~상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`) | 명시적 ReAct 포맷 표준화, Memory 활용 고도화 |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
 | 서비스 개발/패키징 | 부분 구현 | Streamlit UI | FastAPI 백엔드(필수), Docker 배포(선택) |
@@ -20,7 +20,7 @@
 - RAG(FAISS/하이브리드): `app/retrieval/vector_store.py`, `app/retrieval/search_service.py`, `app/retrieval/knowledge_loader.py`
 
 ### 미구현 체크리스트 (우선순위)
-- [ ] P1 Prompt: Few-shot + 일관성 보정 템플릿
+- [x] P1 Prompt: Few-shot + 일관성 보정 템플릿
 - [ ] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [ ] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [ ] P2 ReAct: Tool 실행 흐름 포맷 표준화
@@ -183,6 +183,11 @@ test-agentic-service/
 - 각 에이전트는 단일 책임 원칙 준수
 - Supervisor는 흐름 제어만 담당
 - 명확한 데이터 전달 구조
+
+### Prompt Engineering 보강
+- 각 에이전트에 소형 Few-shot 예시를 포함해 출력 형식 일관성 강화
+- `rationale` 필드를 공통 도입해 짧은 판단 근거 표준화
+- 필수 키 누락 시 JSON 리페어를 1회 수행하는 일관성 가드 적용
 
 ## RAG 시스템 상세
 
