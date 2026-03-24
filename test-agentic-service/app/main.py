@@ -147,6 +147,8 @@ def main():
                         flight_search_attempts=0,
                         max_flight_search_attempts=3,
                         itinerary=None,
+                        decision_memory=[],
+                        constraints_memory={},
                         current_step="",
                         messages=[],
                         completed=False,

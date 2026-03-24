@@ -129,6 +129,7 @@ Few-shot 예시:
         new_state["itinerary"] = itinerary_data
         new_state["current_step"] = AgentType.ITINERARY_PLANNER
         new_state["completed"] = True
+        decision_memory = list(new_state.get("decision_memory", []))
         
         if itinerary_data:
             budget = itinerary_data.get("budget_breakdown", {})
@@ -138,6 +139,10 @@ Few-shot 예시:
                 "content": f"여행 일정 및 예산 계획 완료 (총 예산: {total:,}원)"
             })
             self.logger.info(f"[완료] 총 예산: {total:,}원")
+            decision_memory.append(
+                f"ITINERARY_PLANNER: 일정/예산 완료 (total={total:,}원)"
+            )
+        new_state["decision_memory"] = decision_memory[-10:]
         
         # 출력 로깅
         log_agent_output(self.logger, self.role, itinerary_data)
@@ -171,6 +176,17 @@ Few-shot 예시:
                 "웹 검색이 필요하면 search_web 도구를 사용하세요.\n"
                 f"권장 검색어: {tool_query}\n"
             )
+
+        constraints_memory = state.get("constraints_memory", {})
+        decision_memory = state.get("decision_memory", [])
+        if constraints_memory:
+            prompt += "\n[제약조건 메모리]\n"
+            for key, value in constraints_memory.items():
+                prompt += f"- {key}: {value}\n"
+        if decision_memory:
+            prompt += "\n[최근 의사결정 메모리]\n"
+            for item in decision_memory[-3:]:
+                prompt += f"- {item}\n"
         
         if budget:
             prompt += f"\n전체 예산: {budget:,}원 (항공권 포함)"

@@ -133,12 +133,24 @@ Few-shot 예시 2:
             "role": self.role,
             "content": f"추천 도시: {', '.join([city['city'] for city in recommended_cities])}"
         })
+        decision_memory = list(new_state.get("decision_memory", []))
+        constraints_memory = dict(new_state.get("constraints_memory", {}))
         
         # 첫 번째 도시를 자동 선택 (MVP 단순화)
         if recommended_cities:
             new_state["selected_city_index"] = 0
             new_state["selected_city"] = recommended_cities[0]
             self.logger.info(f"[선택] 자동 선택된 도시: {recommended_cities[0]['city']}")
+            decision_memory.append(
+                f"CITY_RECOMMENDER: {recommended_cities[0]['city']}를 1순위로 선택"
+            )
+
+        constraints_memory["travel_theme"] = str(state.get("travel_theme", ""))
+        constraints_memory["travel_days"] = str(state.get("travel_days", ""))
+        constraints_memory["budget"] = str(state.get("budget", ""))
+        constraints_memory["departure_city"] = str(state.get("departure_city", "서울"))
+        new_state["decision_memory"] = decision_memory[-10:]
+        new_state["constraints_memory"] = constraints_memory
         
         # 출력 로깅
         log_agent_output(self.logger, self.role, recommended_cities)
@@ -161,6 +173,17 @@ Few-shot 예시 2:
                 f"웹 검색 필요 시 search_web를 사용하세요.\n"
                 f"권장 검색어: {suggested_query}\n"
             )
+
+        constraints_memory = state.get("constraints_memory", {})
+        decision_memory = state.get("decision_memory", [])
+        if constraints_memory:
+            prompt += "\n[제약조건 메모리]\n"
+            for key, value in constraints_memory.items():
+                prompt += f"- {key}: {value}\n"
+        if decision_memory:
+            prompt += "\n[최근 의사결정 메모리]\n"
+            for item in decision_memory[-3:]:
+                prompt += f"- {item}\n"
 
         prompt += "\n위 조건에 맞는 해외 여행 도시를 추천해주세요."
         

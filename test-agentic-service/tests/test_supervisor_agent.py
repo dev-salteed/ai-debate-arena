@@ -30,6 +30,8 @@ def make_state(**overrides):
         "flight_search_attempts": 1,
         "max_flight_search_attempts": 3,
         "itinerary": None,
+        "decision_memory": [],
+        "constraints_memory": {},
         "current_step": AgentType.FLIGHT_SEARCH,
         "messages": [],
         "completed": False,
@@ -54,6 +56,8 @@ class SupervisorRoutingTests(unittest.TestCase):
         self.assertEqual(updated.get("selected_city_index"), 1)
         self.assertEqual(updated.get("selected_city", {}).get("city"), "오사카")
         self.assertIn("분기", updated.get("messages", [])[-1].get("content"))
+        self.assertGreaterEqual(len(updated.get("decision_memory", [])), 1)
+        self.assertIn("last_flight_unavailability_reason", updated.get("constraints_memory", {}))
 
         routed = self.supervisor.route_next(updated)
         self.assertEqual(routed, AgentType.FLIGHT_SEARCH)
@@ -67,4 +71,3 @@ class SupervisorRoutingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

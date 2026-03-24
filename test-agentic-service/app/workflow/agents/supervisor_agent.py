@@ -31,6 +31,9 @@ class SupervisorAgent:
 
         has_next_city = selected_index + 1 < len(recommended_cities)
         can_retry = attempts < max_attempts
+        decision_memory = list(new_state.get("decision_memory", []))
+        constraints_memory = dict(new_state.get("constraints_memory", {}))
+        reason = state.get("flight_unavailability_reason") or "미가용 사유 없음"
 
         if has_next_city and can_retry:
             next_index = selected_index + 1
@@ -44,6 +47,19 @@ class SupervisorAgent:
                     f"{next_city.get('city', '다음 도시')}로 재검색합니다."
                 ),
             })
+            decision_memory.append(
+                "SUPERVISOR: 항공권 미가용 분기 -> "
+                f"{next_city.get('city', '다음 도시')} 재검색 (reason={reason})"
+            )
+            constraints_memory["last_flight_unavailability_reason"] = reason
+        else:
+            decision_memory.append(
+                "SUPERVISOR: 재시도 조건 없음 -> 일정 단계 fallback "
+                f"(reason={reason})"
+            )
+
+        new_state["decision_memory"] = decision_memory[-10:]
+        new_state["constraints_memory"] = constraints_memory
 
         return new_state
 

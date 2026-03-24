@@ -5,7 +5,7 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 부분~상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`) | 명시적 ReAct 포맷 표준화, Memory 활용 고도화 |
+| LangChain/LangGraph Agent | 상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용 | 명시적 ReAct 포맷 표준화 |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
 | 서비스 개발/패키징 | 부분 구현 | Streamlit UI | FastAPI 백엔드(필수), Docker 배포(선택) |
 
@@ -17,7 +17,7 @@
 
 ### **2.2 미구현 체크리스트 (우선순위)**
 - [x] P1 Prompt: Few-shot + 일관성 보정 템플릿
-- [ ] P1 Memory: 상태 메모리 누적/재사용 고도화
+- [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [ ] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [ ] P2 ReAct: Tool 실행 흐름 포맷 표준화
 - [ ] P3 Docker(선택): Streamlit + FastAPI 실행 환경
@@ -26,6 +26,11 @@
 - Agent A/B/C system prompt에 Few-shot 예시 추가
 - `rationale` 필드를 공통 출력 스키마에 포함
 - JSON 파싱 시 필수 키 누락을 감지하면 LLM 기반 JSON 리페어를 1회 수행
+
+### **2.4 Memory 보강 내용**
+- `TravelState`에 `decision_memory`, `constraints_memory`를 추가해 상태 메모리 누적
+- Supervisor 분기 시 미가용 사유/도시 전환 내역을 메모리에 기록
+- Agent B/C 프롬프트에 최근 의사결정/제약 메모리를 주입해 재시도 품질 보강
 
 ## **3. 주요 기능 및 동작 시나리오**
 

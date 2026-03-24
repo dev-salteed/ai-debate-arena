@@ -36,6 +36,8 @@ class TravelState(TypedDict):
     flight_search_attempts: int  # 항공권 검색 시도 횟수
     max_flight_search_attempts: int  # 최대 재시도 횟수
     itinerary: Optional[Dict]  # 여행 일정 + 예산
+    decision_memory: List[str]  # 분기/선택 이력 요약 메모리
+    constraints_memory: Dict[str, str]  # 제약조건 요약 메모리
     
     # 진행 상태
     current_step: str  # 현재 진행 단계

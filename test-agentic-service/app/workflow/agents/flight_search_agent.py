@@ -156,6 +156,7 @@ Few-shot 예시:
         )
         new_state["flight_search_attempts"] = state.get("flight_search_attempts", 0) + 1
         new_state["current_step"] = AgentType.FLIGHT_SEARCH
+        decision_memory = list(new_state.get("decision_memory", []))
         
         if flight_available and flight_info:
             price_text = f"{flight_info.get('price', 0):,}원"
@@ -164,6 +165,10 @@ Few-shot 예시:
                 "content": f"항공권 검색 완료: {flight_info.get('airline')} ({price_text})"
             })
             self.logger.info(f"[완료] 항공권: {flight_info.get('airline')}, 가격: {price_text}")
+            decision_memory.append(
+                "FLIGHT_SEARCH: 가용 항공권 확보 "
+                f"({flight_info.get('airline')}, {flight_info.get('price', 0):,}원)"
+            )
         else:
             reason = unavailability_reason or "가용 항공권을 확인하지 못했습니다."
             new_state["messages"].append({
@@ -171,6 +176,9 @@ Few-shot 예시:
                 "content": f"항공권 미가용 판단: {reason}"
             })
             self.logger.warning(f"[미가용] {reason}")
+            decision_memory.append(f"FLIGHT_SEARCH: 미가용 ({reason})")
+
+        new_state["decision_memory"] = decision_memory[-10:]
         
         # 출력 로깅
         log_agent_output(self.logger, self.role, flight_info)
@@ -257,6 +265,17 @@ Few-shot 예시:
             )
         elif search_context:
             prompt += f"{search_context}\n"
+
+        constraints_memory = state.get("constraints_memory", {})
+        decision_memory = state.get("decision_memory", [])
+        if constraints_memory:
+            prompt += "\n[제약조건 메모리]\n"
+            for key, value in constraints_memory.items():
+                prompt += f"- {key}: {value}\n"
+        if decision_memory:
+            prompt += "\n[최근 의사결정 메모리]\n"
+            for item in decision_memory[-3:]:
+                prompt += f"- {item}\n"
         
         prompt += """위 정보를 바탕으로 적절한 왕복 항공권을 추천해주세요.
 항공권 가격은 현실적인 가격을 제시하세요.
