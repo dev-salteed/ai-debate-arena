@@ -180,7 +180,7 @@ test-agentic-service/
 ## MVP 특징
 
 ### 단순성
-- 순차적 실행 구조 (복잡한 분기 없음)
+- Supervisor 기반 상태 분기 구조 (항공권 미가용 시 재검색 분기 포함)
 - 각 에이전트는 독립적으로 동작
 - 명확한 입력/출력 인터페이스
 
@@ -204,6 +204,10 @@ test-agentic-service/
 - `tool_runner`에 ReAct 정책(system rule) 추가
 - Tool 루프 로그를 `action/observation` 형식으로 구조화
 - 최종 응답은 기존 JSON 스키마를 유지하도록 강제
+
+### 최신 검증 결과 (2026-03-24)
+- Streamlit UI와 FastAPI(`GET /api/health`, `POST /api/plan`) 모두 동일 워크플로우로 동작
+- 테스트: `python -m unittest discover -s tests` 기준 **22 tests, OK**
 
 ### Prompt Engineering 보강
 - 각 에이전트에 소형 Few-shot 예시를 포함해 출력 형식 일관성 강화
