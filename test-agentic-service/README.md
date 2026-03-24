@@ -11,7 +11,7 @@
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
 | LangChain/LangGraph Agent | 상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용 | 명시적 ReAct 포맷 표준화 |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
-| 서비스 개발/패키징 | 부분 구현 | Streamlit UI | FastAPI 백엔드(필수), Docker 배포(선택) |
+| 서비스 개발/패키징 | 상당 구현 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | Docker 배포(선택) |
 
 ### 근거 코드 위치
 - Prompt/Agent: `app/workflow/agents/*`
@@ -22,7 +22,7 @@
 ### 미구현 체크리스트 (우선순위)
 - [x] P1 Prompt: Few-shot + 일관성 보정 템플릿
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
-- [ ] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
+- [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [ ] P2 ReAct: Tool 실행 흐름 포맷 표준화
 - [ ] P3 Docker(선택): Streamlit + FastAPI 실행 환경
 
@@ -104,6 +104,16 @@ pip install -r requirements.txt
 streamlit run app/main.py
 ```
 
+### 2-1. FastAPI 백엔드 실행
+
+```bash
+uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+주요 엔드포인트:
+- `GET /api/health`
+- `POST /api/plan`
+
 ### 3. 벡터DB 인덱스 빌드 (권장)
 
 하이브리드 RAG는 로컬 FAISS 인덱스가 있을 때 벡터 검색을 우선 사용합니다.
@@ -143,6 +153,8 @@ python app/workflow/graph.py
 test-agentic-service/
 ├── app/
 │   ├── main.py                     # Streamlit 앱
+│   ├── api/
+│   │   └── main.py                 # FastAPI 백엔드
 │   ├── retrieval/                  # RAG 시스템
 │   │   ├── __init__.py
 │   │   ├── search_service.py      # 하이브리드 검색 (Vector + Web)
