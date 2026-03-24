@@ -52,6 +52,14 @@ class FlightSearchAgent:
             "unavailable",
             "운휴",
         ]
+        self.availability_signal_keywords = [
+            "예약 가능 여부",
+            "운항 현황",
+            "출도착",
+            "항공편",
+            "스케줄",
+            "availability",
+        ]
 
     def run(self, state: TravelState) -> TravelState:
         """항공권 검색 실행"""
@@ -188,6 +196,13 @@ class FlightSearchAgent:
                 return False, f"검색 결과에서 미가용 신호 감지: {matched[0]}"
 
         return True, ""
+
+    def _collect_availability_signals(self, search_context: str) -> list[str]:
+        """검색 컨텍스트의 가용성 관련 키워드 추출."""
+        if not search_context:
+            return []
+        lowered = search_context.lower()
+        return [kw for kw in self.availability_signal_keywords if kw.lower() in lowered]
 
     def _calculate_dates(self, state: TravelState) -> tuple:
         """여행 날짜 계산"""
