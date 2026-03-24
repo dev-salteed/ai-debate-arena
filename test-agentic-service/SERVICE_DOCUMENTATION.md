@@ -34,46 +34,55 @@
 - Supervisor + Worker(도시추천/항공권/일정) Multi-Agent를 LangGraph 상태 그래프로 운영한다.
 - Supervisor는 항공권 미가용 시 다음 도시 재검색 분기와 재시도 제어를 담당한다.
 - `TravelState`의 `decision_memory`, `constraints_memory`를 누적해 후속 Agent 프롬프트에 재주입한다.
+- 현재 협업 방식은 Supervisor 중심 순차 라우팅이며, Worker 간 독립 재계획(A2A) 구조는 향후 과제다.
 
 ### **2.3 RAG 구성**
 - 목적: 최신 정보 반영 + 의사결정 연속성 강화.
 - 하이브리드 RAG:
   1. 벡터 검색(FAISS) 우선
   2. 결과 부족 시 DuckDuckGo 웹 검색 fallback
-- `search_web`를 LangChain Tool(`@tool`)로 변환하고 Agent가 `bind_tools`로 호출한다.
-- 검색은 사전 고정 호출이 아니라 Agent 실행 흐름(Action) 내부 Tool 호출로 통합됐다.
+- `search_city_context`, `search_flight_context`, `search_web`를 LangChain Tool(`@tool`)로 제공하고 Agent가 `bind_tools`로 호출한다.
+- Flight 단계는 tool observation을 `search_context`로 반영해 응답 생성/가용성 판단 근거를 연결한다.
 
 ### **2.4 서비스 개발 및 패키징**
 - UI: Streamlit
 - Backend: FastAPI (`GET /api/health`, `POST /api/plan`)
 - 환경설정: `.env` 기반 키 관리
 - 실행 중심은 로컬(venv)이며, 현재 버전에서는 컨테이너화 산출물을 제외했다.
+- Streamlit UI는 `thread_id` 기반 이어서 재실행(멀티턴)을 지원한다.
 
-### **2.5 선택적 확장 기능**
+### **2.5 LangGraph 체크포인터/스토어**
+- `workflow.compile(checkpointer=MemorySaver(), store=InMemoryStore())`를 적용했다.
+- 적용 범위: Streamlit UI 연속 실행(동일 `thread_id`)
+- 한계: 메모리형 저장소 특성상 프로세스 재시작 시 맥락은 유지되지 않는다.
+
+### **2.6 선택적 확장 기능**
 - 선반영:
   1. Tool Calling(`bind_tools`)
   2. ReAct 실행 정책 표준화(공통 `tool_runner`)
   3. 상태 메모리 기반 연속 의사결정
-  4. FastAPI API 인터페이스
+  4. FastAPI API 인터페이스(단발 호출)
 - 향후:
   1. 외부 항공/숙소 API(Function Calling 확장)
   2. 장기 메모리 저장소(DB) 연동
   3. 멀티소스 RAG 재랭킹 고도화
   4. A2A 구조로 Supervisor 의존도 완화
 
-## **2. 4.2 필수 기술 요소 구현 현황**
+## **2.7 4.2 필수 기술 요소 구현 현황**
 
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | - |
-| RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | Worker 간 완전 자율 협업(A2A) |
+| RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹), Flight tool observation 기반 통합 | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
+| 맥락 유지/멀티턴 | 부분 구현 | LangGraph `MemorySaver` + `InMemoryStore`, UI `thread_id` 연속 실행 | 메모리형 한계(재시작 시 소실), API 멀티턴 미적용 |
 | 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | - |
 
 ### **2.1 근거 모듈**
 - Prompt/Agent: `app/workflow/agents/*`
 - LangGraph 분기: `app/workflow/graph.py`, `app/workflow/agents/supervisor_agent.py`
 - Tool Calling: `app/workflow/agents/tool_runner.py`
+- 멀티턴(UI): `app/main.py` (`thread_id`, continue run)
 - RAG(FAISS/하이브리드): `app/retrieval/vector_store.py`, `app/retrieval/search_service.py`, `app/retrieval/knowledge_loader.py`
 
 ### **2.2 미구현 체크리스트 (우선순위)**
@@ -81,6 +90,7 @@
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [x] P2 ReAct: Tool 실행 흐름 포맷 표준화
+- [x] P2 LangGraph Checkpointer/Store: 메모리형 최소 구현 + UI 멀티턴 연동
 
 ### **2.3 Prompt 보강 내용**
 - Agent A/B/C system prompt에 Few-shot 예시 추가
@@ -103,12 +113,19 @@
 - 도구 실행 로그를 `action/observation` 구조로 기록해 디버깅 일관성 확보
 - 최종 응답은 기존 JSON 스키마를 유지하도록 제약
 
+### **2.7 피드백 반영 체크포인트**
+1. 과제 개요 문서 충실도: 기술별 섹션과 구현 근거 파일 경로를 README/상세문서 모두에 동기화
+2. 검색 지식 통합: Flight 단계에서 tool observation을 `search_context`로 연동
+3. Multi-Agent 설명: Supervisor 중심 순차 협업 구조임을 명시
+4. 맥락 유지/멀티턴: MemorySaver/InMemoryStore + UI thread_id 연속 실행 적용
+
 ## **4. 실행 결과 업데이트**
 - Streamlit UI에서 입력(여행 주제/일수/예산/출발지) 후 Multi-Agent 파이프라인이 end-to-end로 동작한다.
-- FastAPI 경유 실행(`POST /api/plan`)도 동일 워크플로우로 처리된다.
+- FastAPI 경유 실행(`POST /api/plan`)도 동일 워크플로우로 처리된다(단발 호출).
+- Streamlit은 `thread_id` 기반 이어서 재실행(멀티턴)을 지원한다.
 - 테스트 결과(2026-03-24 기준):
-  - `python -m unittest discover -s tests`
-  - **22 tests, OK**
+  - `./venv/bin/python -m unittest discover -s tests`
+  - **28 tests, OK**
 
 ## **6. 프로젝트 수행 소감 / 피드백 업데이트**
 - 초기에는 역할 분업 중심 MVP였으나, 현재는 Tool Calling/ReAct/상태 메모리까지 확장되어 Agentic 특성이 명확해졌다.

@@ -9,14 +9,16 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | - |
-| RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent(Supervisor+3 Worker), Tool Calling(`bind_tools`), 공통 ReAct policy, 상태 메모리 누적 | Worker 간 완전 자율 협업(A2A)까지는 미적용 |
+| RAG | 상당 구현 | FAISS+웹 하이브리드, `search_city_context`, `search_flight_context`, Flight tool observation 기반 통합 | 재랭킹/멀티소스 결합 고도화 |
+| 맥락 유지/멀티턴 | 부분 구현 | LangGraph `MemorySaver` + `InMemoryStore`, Streamlit thread_id 기반 연속 실행 | 프로세스 재시작 시 맥락 소실(메모리형 한계), API 멀티턴 미반영 |
 | 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | - |
 
 ### 근거 코드 위치
 - Prompt/Agent: `app/workflow/agents/*`
 - LangGraph 분기: `app/workflow/graph.py`, `app/workflow/agents/supervisor_agent.py`
 - Tool Calling: `app/workflow/agents/tool_runner.py`
+- 멀티턴(UI): `app/main.py` (`thread_id`, continue run)
 - RAG(FAISS/하이브리드): `app/retrieval/vector_store.py`, `app/retrieval/search_service.py`, `app/retrieval/knowledge_loader.py`
 
 ### 미구현 체크리스트 (우선순위)
@@ -24,6 +26,22 @@
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
 - [x] P2 ReAct: Tool 실행 흐름 포맷 표준화
+- [x] P2 LangGraph Checkpointer/Store: 메모리형 최소 구현 + UI 멀티턴 연동
+
+## 피드백 반영 체크포인트
+
+1. 과제 개요 문서 충실도
+   - 기술별 설명(Prompt/LangGraph/RAG/UI)과 구현 근거 파일을 본 문서와 상세 문서에 동시 반영
+   - 과거 문구 중 현재 구현과 불일치하는 표현(예: Tool Calling 미적용)을 삭제/정정
+2. 검색 지식 통합
+   - 도시 추천: `search_city_context` tool 기반
+   - 항공권: `search_flight_context` tool observation을 `search_context`로 받아 응답/가용성 판단에 반영
+3. Multi-Agent 구조 설명 정밀화
+   - 역할 분리는 유지하되, 현재 구조는 Supervisor 중심 순차 협업임을 명시
+4. 맥락 유지/멀티턴
+   - LangGraph `MemorySaver` + `InMemoryStore` 적용
+   - Streamlit UI에서 동일 `thread_id`로 이어서 재실행 지원
+   - 한계: 메모리형 저장소라 프로세스 재시작 시 맥락 유지 불가
 
 ## 주요 기능
 
@@ -207,7 +225,8 @@ test-agentic-service/
 
 ### 최신 검증 결과 (2026-03-24)
 - Streamlit UI와 FastAPI(`GET /api/health`, `POST /api/plan`) 모두 동일 워크플로우로 동작
-- 테스트: `python -m unittest discover -s tests` 기준 **22 tests, OK**
+- Streamlit은 `thread_id` 기반 이어서 재실행(멀티턴) 지원
+- 테스트: `./venv/bin/python -m unittest discover -s tests` 기준 **28 tests, OK**
 
 ### Prompt Engineering 보강
 - 각 에이전트에 소형 Few-shot 예시를 포함해 출력 형식 일관성 강화
@@ -223,9 +242,9 @@ test-agentic-service/
    - LLM이 검색 결과를 참고하여 도시 추천
 
 2. **Agent B (항공권 검색)**
-   - 쿼리: "서울 {도시명} 항공권 평균 가격 항공사"
-   - 최대 3개 검색 결과 수집
-   - 실제 항공권 가격 참고하여 현실적인 견적 제공
+   - 쿼리: "서울 {도시명} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
+   - `search_flight_context` tool로 하이브리드 검색 컨텍스트 수집
+   - tool observation을 응답 생성 및 가용성 판단(`search_context`)에 반영
 
 3. **Agent C (일정 계획)**
    - 쿼리: "{도시명} {여행 주제} 여행 일정 추천 명소 맛집"
