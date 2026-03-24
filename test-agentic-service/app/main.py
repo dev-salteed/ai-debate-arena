@@ -76,9 +76,9 @@ def main():
             )
             
             enable_rag = st.checkbox(
-                "🔍 RAG (웹 검색) 활성화",
+                "🔍 RAG 활성화",
                 value=True,
-                help="DuckDuckGo 웹 검색으로 실시간 정보를 가져옵니다"
+                help="외부 지식을 검색하여 여행 계획에 활용합니다."
             )
             
             submitted = st.form_submit_button("여행 계획 시작", use_container_width=True)
@@ -140,7 +140,12 @@ def main():
                         departure_city=departure_city,
                         recommended_cities=[],
                         selected_city=None,
+                        selected_city_index=0,
                         flight_info=None,
+                        flight_available=False,
+                        flight_unavailability_reason=None,
+                        flight_search_attempts=0,
+                        max_flight_search_attempts=3,
                         itinerary=None,
                         current_step="",
                         messages=[],
@@ -196,6 +201,10 @@ def main():
         # 2. 항공권
         st.markdown("### ✈️ 항공권 정보")
         flight = plan.get("flight_info")
+        flight_available = plan.get("flight_available", True)
+        unavailable_reason = plan.get("flight_unavailability_reason")
+        if not flight_available and unavailable_reason:
+            st.warning(f"항공권 가용성 이슈로 분기됨: {unavailable_reason}")
         if flight:
             col1, col2 = st.columns(2)
             with col1:

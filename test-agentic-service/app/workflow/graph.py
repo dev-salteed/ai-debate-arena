@@ -12,7 +12,7 @@ def create_travel_graph(enable_rag: bool = True):
     여행 계획 그래프 생성
     
     Args:
-        enable_rag: RAG(웹 검색) 활성화 여부
+        enable_rag: RAG 활성화 여부
     """
     
     # 그래프 생성
@@ -25,18 +25,30 @@ def create_travel_graph(enable_rag: bool = True):
     supervisor = SupervisorAgent()
     
     # 노드 추가
+    workflow.add_node(AgentType.SUPERVISOR, supervisor.run)
     workflow.add_node(AgentType.CITY_RECOMMENDER, city_recommender.run)
     workflow.add_node(AgentType.FLIGHT_SEARCH, flight_search.run)
     workflow.add_node(AgentType.ITINERARY_PLANNER, itinerary_planner.run)
-    
-    # 엣지 추가: 순차 실행
-    # 도시 추천 → 항공권 검색 → 일정 계획 → 종료
-    workflow.add_edge(AgentType.CITY_RECOMMENDER, AgentType.FLIGHT_SEARCH)
-    workflow.add_edge(AgentType.FLIGHT_SEARCH, AgentType.ITINERARY_PLANNER)
-    workflow.add_edge(AgentType.ITINERARY_PLANNER, END)
-    
+
+    # 각 작업 노드 실행 후 항상 Supervisor로 돌아가서 다음 분기를 결정한다.
+    workflow.add_edge(AgentType.CITY_RECOMMENDER, AgentType.SUPERVISOR)
+    workflow.add_edge(AgentType.FLIGHT_SEARCH, AgentType.SUPERVISOR)
+    workflow.add_edge(AgentType.ITINERARY_PLANNER, AgentType.SUPERVISOR)
+
+    # Supervisor 조건 분기
+    workflow.add_conditional_edges(
+        AgentType.SUPERVISOR,
+        supervisor.route_next,
+        {
+            AgentType.CITY_RECOMMENDER: AgentType.CITY_RECOMMENDER,
+            AgentType.FLIGHT_SEARCH: AgentType.FLIGHT_SEARCH,
+            AgentType.ITINERARY_PLANNER: AgentType.ITINERARY_PLANNER,
+            "END": END,
+        },
+    )
+
     # 시작 지점 설정
-    workflow.set_entry_point(AgentType.CITY_RECOMMENDER)
+    workflow.set_entry_point(AgentType.SUPERVISOR)
     
     # 그래프 컴파일
     return workflow.compile()

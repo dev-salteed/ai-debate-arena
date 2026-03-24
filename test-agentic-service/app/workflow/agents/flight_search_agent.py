@@ -40,6 +40,25 @@ class FlightSearchAgent:
 - 실제 항공사명을 사용하세요 (대한항공, 아시아나항공, 진에어 등)
 - 공항 코드는 IATA 3자리 코드를 사용하세요
 """
+        self.unavailability_keywords = [
+            "항공편 없음",
+            "운항 없음",
+            "예약 불가",
+            "매진",
+            "no flights",
+            "not available",
+            "sold out",
+            "unavailable",
+            "운휴",
+        ]
+        self.availability_signal_keywords = [
+            "예약 가능 여부",
+            "운항 현황",
+            "출도착",
+            "항공편",
+            "스케줄",
+            "availability",
+        ]
 
     def run(self, state: TravelState) -> TravelState:
         """항공권 검색 실행"""
@@ -56,10 +75,14 @@ class FlightSearchAgent:
         if self.enable_rag:
             selected_city = state.get("selected_city", {})
             city_name = selected_city.get("city", "")
-            search_query = f"서울 {city_name} 항공권 평균 가격 항공사"
+            search_query = f"서울 {city_name} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
             self.logger.info(f"[RAG] 검색 쿼리 생성: {search_query}")
             search_context = search_with_context(search_query, max_results=3)
             log_search_context(self.logger, search_query, search_context)
+
+            signal_keywords = self._collect_availability_signals(search_context)
+            if signal_keywords:
+                self.logger.info(f"[가용성 신호] 검색 결과 포함 키워드: {', '.join(signal_keywords)}")
         
         # 프롬프트 생성
         prompt = self._create_prompt(state, departure_date, return_date, search_context)
@@ -103,21 +126,84 @@ class FlightSearchAgent:
         
         # 상태 업데이트
         new_state = state.copy()
-        new_state["flight_info"] = flight_info
+        flight_available, unavailability_reason = self._evaluate_availability(
+            flight_info=flight_info,
+            search_context=search_context,
+        )
+
+        new_state["flight_info"] = flight_info if flight_available else None
+        new_state["flight_available"] = flight_available
+        new_state["flight_unavailability_reason"] = (
+            unavailability_reason if not flight_available else None
+        )
+        new_state["flight_search_attempts"] = state.get("flight_search_attempts", 0) + 1
         new_state["current_step"] = AgentType.FLIGHT_SEARCH
         
-        if flight_info:
+        if flight_available and flight_info:
             price_text = f"{flight_info.get('price', 0):,}원"
             new_state["messages"].append({
                 "role": self.role,
                 "content": f"항공권 검색 완료: {flight_info.get('airline')} ({price_text})"
             })
             self.logger.info(f"[완료] 항공권: {flight_info.get('airline')}, 가격: {price_text}")
+        else:
+            reason = unavailability_reason or "가용 항공권을 확인하지 못했습니다."
+            new_state["messages"].append({
+                "role": self.role,
+                "content": f"항공권 미가용 판단: {reason}"
+            })
+            self.logger.warning(f"[미가용] {reason}")
         
         # 출력 로깅
         log_agent_output(self.logger, self.role, flight_info)
         
         return new_state
+
+    def _evaluate_availability(self, flight_info: Dict, search_context: str) -> tuple[bool, str]:
+        """
+        항공권 가용성 평가.
+
+        Returns:
+            (가용 여부, 미가용 사유)
+        """
+        if not flight_info:
+            return False, "항공권 결과가 비어 있습니다."
+
+        required_fields = [
+            "departure_airport",
+            "arrival_airport",
+            "departure_date",
+            "return_date",
+            "airline",
+            "price",
+        ]
+        missing = [
+            field
+            for field in required_fields
+            if field not in flight_info or flight_info.get(field) in (None, "")
+        ]
+        if missing:
+            return False, f"필수 항공권 필드 누락: {', '.join(missing)}"
+
+        price = flight_info.get("price", 0)
+        if not isinstance(price, (int, float)) or price <= 0:
+            return False, "항공권 가격이 유효하지 않습니다."
+
+        # 검색 컨텍스트에 강한 미가용 신호가 있으면 우선 미가용으로 판단.
+        if search_context:
+            context_lower = search_context.lower()
+            matched = [kw for kw in self.unavailability_keywords if kw.lower() in context_lower]
+            if matched:
+                return False, f"검색 결과에서 미가용 신호 감지: {matched[0]}"
+
+        return True, ""
+
+    def _collect_availability_signals(self, search_context: str) -> list[str]:
+        """검색 컨텍스트의 가용성 관련 키워드 추출."""
+        if not search_context:
+            return []
+        lowered = search_context.lower()
+        return [kw for kw in self.availability_signal_keywords if kw.lower() in lowered]
 
     def _calculate_dates(self, state: TravelState) -> tuple:
         """여행 날짜 계산"""

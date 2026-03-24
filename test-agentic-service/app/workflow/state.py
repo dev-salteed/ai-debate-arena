@@ -30,6 +30,11 @@ class TravelState(TypedDict):
     recommended_cities: List[Dict]  # 추천 도시 목록
     selected_city: Optional[Dict]  # 선택된 도시
     flight_info: Optional[Dict]  # 항공권 정보
+    flight_available: bool  # 항공권 가용 여부
+    flight_unavailability_reason: Optional[str]  # 미가용 사유
+    selected_city_index: int  # 현재 선택된 도시 인덱스
+    flight_search_attempts: int  # 항공권 검색 시도 횟수
+    max_flight_search_attempts: int  # 최대 재시도 횟수
     itinerary: Optional[Dict]  # 여행 일정 + 예산
     
     # 진행 상태

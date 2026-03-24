@@ -96,6 +96,10 @@ class CityRecommenderAgent:
         new_state = state.copy()
         new_state["recommended_cities"] = recommended_cities
         new_state["current_step"] = AgentType.CITY_RECOMMENDER
+        new_state["flight_available"] = False
+        new_state["flight_unavailability_reason"] = None
+        new_state["flight_search_attempts"] = 0
+        new_state["flight_info"] = None
         new_state["messages"].append({
             "role": self.role,
             "content": f"추천 도시: {', '.join([city['city'] for city in recommended_cities])}"
@@ -103,6 +107,7 @@ class CityRecommenderAgent:
         
         # 첫 번째 도시를 자동 선택 (MVP 단순화)
         if recommended_cities:
+            new_state["selected_city_index"] = 0
             new_state["selected_city"] = recommended_cities[0]
             self.logger.info(f"[선택] 자동 선택된 도시: {recommended_cities[0]['city']}")
         

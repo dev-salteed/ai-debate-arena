@@ -50,7 +50,7 @@
    ✈️ 항공권 검색 에이전트 실행
    
    [웹 검색]
-   - 쿼리: "서울 발리 항공권 평균 가격 항공사"
+   - 쿼리: "서울 발리 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
    - 실제 항공권 가격 정보 수집
    - 주요 항공사 및 시즌별 가격 정보 확보
    
@@ -183,7 +183,7 @@
 │  (흐름 제어)      │              └──────────────────┘
 └────────┬─────────┘
          │
-         │ 순차 실행 제어
+         │ 조건 분기 제어
          ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Multi-Agent System                          │
@@ -206,10 +206,12 @@
 │  │  │  1. 입력 로깅 (선택된 도시)                        │   │  │
 │  │  │  2. 날짜 계산 (출발: +30일, 귀국: +일수)           │   │  │
 │  │  │  3. RAG 검색 (DuckDuckGo)                          │   │  │
-│  │  │     └→ "서울 {도시} 항공권 평균 가격 항공사"       │   │  │
+│  │  │     └→ "서울 {도시} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사" │   │  │
 │  │  │  4. 검색 결과 + LLM (OpenAI GPT)                   │   │  │
 │  │  │  5. JSON 파싱 (항공권 정보)                        │   │  │
-│  │  │  6. 출력 로깅                                       │   │  │
+│  │  │  6. 가용성 판정 (미가용 키워드/필수 필드 검사)      │   │  │
+│  │  │  7. Supervisor 분기 (재검색 또는 다음 단계)          │   │  │
+│  │  │  8. 출력 로깅                                       │   │  │
 │  │  └────────────────────────────────────────────────────┘   │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                          ↓                                        │
@@ -259,6 +261,37 @@
 │  └─ 사이드바: 실행 로그 (최근 50개)                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### **3.2.1 Supervisor 분기 로직 (신규)**
+
+항공권 단계는 이제 고정 순차 흐름이 아니라, `Supervisor`가 `TravelState`를 보고 조건 분기를 수행합니다.
+
+```
+[분기 입력 상태]
+- flight_available (bool)
+- flight_unavailability_reason (str | None)
+- selected_city_index (int)
+- flight_search_attempts (int)
+- max_flight_search_attempts (int)
+
+[분기 규칙]
+1) 항공권 가용(true):
+   FLIGHT_SEARCH -> ITINERARY_PLANNER
+
+2) 항공권 미가용(false) + 재시도 가능:
+   - 추천 도시에 다음 후보가 있으면 selected_city를 다음 도시로 전환
+   - FLIGHT_SEARCH 재실행
+
+3) 항공권 미가용(false) + 재시도 한도 초과:
+   FLIGHT_SEARCH -> ITINERARY_PLANNER (보수적 fallback)
+```
+
+가용성 판정 기준:
+- 필수 항공권 필드 누락 여부 (`departure/arrival/date/airline/price`)
+- 가격 유효성 (`price > 0`)
+- 검색 컨텍스트 내 미가용 시그널 (`예약 불가`, `운항 없음`, `no flights` 등)
 
 ---
 
@@ -326,7 +359,7 @@
   │                  │                │               │                │               │               │               │               │
   │                  │                │               │                │               │               │ 웹 검색 요청  │               │
   │                  │                │               │                │<──────────────────────────────│               │               │
-  │                  │                │               │                │ "서울 발리 항공권"            │               │               │
+  │                  │                │               │                │ "서울 발리 항공권 운항 여부/예약 가능 여부" │               │               │
   │                  │                │               │                │               │               │               │               │
   │                  │                │               │                │ API 호출 + 재시도 로직       │               │               │
   │                  │                │               │                │──────────────>│               │               │               │
@@ -344,10 +377,11 @@
   │                  │                │               │                │               │               │               │               │
   │                  │                │ TravelState   │                │               │               │               │               │
   │                  │                │<────────────────────────────────────────────────────────────────│               │               │
-  │                  │                │ + flight_info                  │               │               │               │               │
+  │                  │                │ + flight_info / flight_available │             │               │               │               │
   │                  │                │               │                │               │               │               │               │
-  │                  │                │               │                │               │               │               │               │
-  │                  │                │ Agent C 호출  │                │               │               │               │               │
+  │                  │                │ Supervisor 분기 판단            │               │               │               │               │
+  │                  │                │ (가용: Agent C / 미가용: Agent B 재시도)       │               │               │               │
+  │                  │                │ Agent C 호출(가용 시) │                │               │               │               │               │
   │                  │                │────────────────────────────────────────────────────────────────────────────────>│               │
   │                  │                │               │                │               │               │               │               │
   │                  │                │               │                │               │               │               │ [입력 로깅]   │
@@ -453,7 +487,7 @@
 └─ 귀국일 = 출발일 + travel_days
 
 [단계 2] RAG 검색 (3-8초)
-├─ 쿼리: "서울 발리 항공권 평균 가격 항공사"
+├─ 쿼리: "서울 발리 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
 ├─ DuckDuckGo 검색
 └─ 항공권 가격 정보 수집
 
@@ -462,8 +496,15 @@
 ├─ GPT-4가 항공권 정보 생성
 └─ JSON: flight 객체
 
-[단계 4] 파싱 + 로깅 (0.1초)
-└─ State 업데이트
+[단계 4] 파싱 + 가용성 판정 (0.1초)
+├─ 필수 필드/가격 유효성 검사
+├─ 검색 컨텍스트 미가용 신호 검사
+└─ State 업데이트 (flight_available, reason, attempts)
+
+[단계 5] Supervisor 분기 (0.1초)
+├─ 가용(true): Agent C로 진행
+├─ 미가용(false) + 재시도 가능: 다음 추천 도시로 전환 후 Agent B 재실행
+└─ 미가용(false) + 재시도 한도 초과: Agent C로 fallback 진행
 ```
 
 #### **Phase 4: Agent C 실행 (일정 계획)**
@@ -549,7 +590,12 @@ TravelState 객체 변화 추적:
   "departure_city": "서울",
   "recommended_cities": [],
   "selected_city": None,
+  "selected_city_index": 0,
   "flight_info": None,
+  "flight_available": False,
+  "flight_unavailability_reason": None,
+  "flight_search_attempts": 0,
+  "max_flight_search_attempts": 3,
   "itinerary": None,
   "current_step": "",
   "messages": [],
@@ -567,6 +613,10 @@ TravelState 객체 변화 추적:
     {"city": "세부", "country": "필리핀", "reason": "..."}
   ],
   "selected_city": {"city": "발리", "country": "인도네시아", "reason": "..."},
+  "selected_city_index": 0,
+  "flight_available": False,
+  "flight_unavailability_reason": None,
+  "flight_search_attempts": 0,
   "current_step": "CITY_RECOMMENDER",
   "messages": [
     {"role": "CITY_RECOMMENDER", "content": "추천 도시: 발리, 푸켓, 세부"}
@@ -586,6 +636,9 @@ TravelState 객체 변화 추적:
     "airline": "대한항공",
     "price": 850000
   },
+  "flight_available": True,
+  "flight_unavailability_reason": None,
+  "flight_search_attempts": 1,
   "current_step": "FLIGHT_SEARCH",
   "messages": [
     {...},
@@ -620,6 +673,20 @@ TravelState 객체 변화 추적:
     {...},
     {...},
     {"role": "ITINERARY_PLANNER", "content": "여행 일정 및 예산 계획 완료 (총 예산: 2,000,000원)"}
+  ]
+}
+```
+
+미가용 분기 예시:
+```
+{
+  "flight_available": False,
+  "flight_unavailability_reason": "검색 결과에서 미가용 신호 감지: 예약 불가",
+  "selected_city_index": 1,
+  "selected_city": {"city": "푸켓", ...},
+  "messages": [
+    ...,
+    {"role": "SUPERVISOR", "content": "항공권 미가용으로 분기: 푸켓으로 재검색합니다."}
   ]
 }
 ```
