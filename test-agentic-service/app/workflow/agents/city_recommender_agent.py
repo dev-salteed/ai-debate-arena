@@ -1,11 +1,11 @@
 """도시 추천 에이전트 - Agent A"""
 import json
-from typing import Dict
 from langchain_core.messages import HumanMessage, SystemMessage
 from utils.config import get_llm
-from utils.logger import setup_logger, log_agent_input, log_agent_output, log_search_context
-from retrieval.search_service import search_with_context
+from utils.logger import setup_logger, log_agent_input, log_agent_output
+from retrieval.search_service import search_web_tool
 from workflow.state import TravelState, AgentType
+from workflow.agents.tool_runner import invoke_with_tool_calls
 
 
 class CityRecommenderAgent:
@@ -43,36 +43,38 @@ class CityRecommenderAgent:
         
         # 입력 로깅
         log_agent_input(self.logger, self.role, state)
-        
-        # RAG: 웹 검색으로 여행지 정보 수집
-        search_context = ""
-        if self.enable_rag:
-            search_query = f"{state['travel_theme']} 여행 추천 도시 해외"
-            self.logger.info(f"[RAG] 검색 쿼리 생성: {search_query}")
-            search_context = search_with_context(search_query, max_results=3)
-            log_search_context(self.logger, search_query, search_context)
-        
+
         # 프롬프트 생성
-        prompt = self._create_prompt(state, search_context)
-        
+        prompt = self._create_prompt(state)
+
         # 시스템 프롬프트에 RAG 안내 추가
         rag_instruction = ""
-        if self.enable_rag and search_context:
-            rag_instruction = "아래 검색 결과를 참고하여 더욱 구체적이고 정확한 추천을 해주세요."
+        if self.enable_rag:
+            rag_instruction = (
+                "최신 정보가 필요하면 search_web 도구를 1회 이상 호출해 근거를 확인하세요."
+            )
         else:
-            rag_instruction = "당신의 지식을 바탕으로 추천해주세요."
-        
+            rag_instruction = "도구를 사용하지 말고, 당신의 지식을 바탕으로 추천해주세요."
+
         system_prompt = self.system_prompt.format(rag_instruction=rag_instruction)
-        
-        # LLM 호출
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=prompt)
-        ]
-        
+
+        # LLM + Tool 호출
         self.logger.info(f"[LLM] 호출 시작 (프롬프트 길이: {len(prompt)} 문자)")
-        response = get_llm().invoke(messages)
-        response_text = response.content.strip()
+        if self.enable_rag:
+            response_text = invoke_with_tool_calls(
+                system_prompt=system_prompt,
+                user_prompt=prompt,
+                tools=[search_web_tool],
+                logger=self.logger,
+            )
+        else:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=prompt),
+            ]
+            response = get_llm().invoke(messages)
+            response_text = response.content.strip()
+
         self.logger.info(f"[LLM] 응답 받음 (길이: {len(response_text)} 문자)")
         
         # JSON 파싱
@@ -116,7 +118,7 @@ class CityRecommenderAgent:
         
         return new_state
 
-    def _create_prompt(self, state: TravelState, search_context: str = "") -> str:
+    def _create_prompt(self, state: TravelState) -> str:
         """프롬프트 생성"""
         prompt = f"여행 주제: {state['travel_theme']}\n"
         
@@ -126,10 +128,13 @@ class CityRecommenderAgent:
         if state.get("budget"):
             prompt += f"예산: {state['budget']:,}원\n"
         
-        # RAG 컨텍스트 추가
-        if search_context:
-            prompt += f"\n{search_context}\n"
-        
+        if self.enable_rag:
+            suggested_query = f"{state['travel_theme']} 여행 추천 도시 해외 최신 트렌드"
+            prompt += (
+                f"웹 검색 필요 시 search_web를 사용하세요.\n"
+                f"권장 검색어: {suggested_query}\n"
+            )
+
         prompt += "\n위 조건에 맞는 해외 여행 도시를 추천해주세요."
         
         return prompt

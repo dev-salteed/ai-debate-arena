@@ -4,9 +4,10 @@ from datetime import datetime, timedelta
 from typing import Dict
 from langchain_core.messages import HumanMessage, SystemMessage
 from utils.config import get_llm
-from utils.logger import setup_logger, log_agent_input, log_agent_output, log_search_context
-from retrieval.search_service import search_with_context
+from utils.logger import setup_logger, log_agent_input, log_agent_output
+from retrieval.search_service import search_web_tool
 from workflow.state import TravelState, AgentType
+from workflow.agents.tool_runner import invoke_with_tool_calls
 
 
 class FlightSearchAgent:
@@ -51,14 +52,6 @@ class FlightSearchAgent:
             "unavailable",
             "운휴",
         ]
-        self.availability_signal_keywords = [
-            "예약 가능 여부",
-            "운항 현황",
-            "출도착",
-            "항공편",
-            "스케줄",
-            "availability",
-        ]
 
     def run(self, state: TravelState) -> TravelState:
         """항공권 검색 실행"""
@@ -70,41 +63,39 @@ class FlightSearchAgent:
         departure_date, return_date = self._calculate_dates(state)
         self.logger.info(f"[날짜 계산] 출발: {departure_date}, 귀국: {return_date}")
         
-        # RAG: 웹 검색으로 항공권 정보 수집
         search_context = ""
-        if self.enable_rag:
-            selected_city = state.get("selected_city", {})
-            city_name = selected_city.get("city", "")
-            search_query = f"서울 {city_name} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
-            self.logger.info(f"[RAG] 검색 쿼리 생성: {search_query}")
-            search_context = search_with_context(search_query, max_results=3)
-            log_search_context(self.logger, search_query, search_context)
-
-            signal_keywords = self._collect_availability_signals(search_context)
-            if signal_keywords:
-                self.logger.info(f"[가용성 신호] 검색 결과 포함 키워드: {', '.join(signal_keywords)}")
         
         # 프롬프트 생성
         prompt = self._create_prompt(state, departure_date, return_date, search_context)
         
         # 시스템 프롬프트에 RAG 안내 추가
         rag_instruction = ""
-        if self.enable_rag and search_context:
-            rag_instruction = "아래 검색 결과를 참고하여 현실적인 항공권 정보를 제공해주세요."
+        if self.enable_rag:
+            rag_instruction = (
+                "최신 운항/가격 정보가 필요하면 search_web 도구를 1회 이상 호출해 확인하세요."
+            )
         else:
-            rag_instruction = "일반적인 항공권 가격을 고려하여 추천해주세요."
-        
+            rag_instruction = "도구를 사용하지 말고 일반적인 항공권 가격을 고려해 추천해주세요."
+
         system_prompt = self.system_prompt.format(rag_instruction=rag_instruction)
-        
-        # LLM 호출
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=prompt)
-        ]
-        
+
+        # LLM + Tool 호출
         self.logger.info(f"[LLM] 호출 시작 (프롬프트 길이: {len(prompt)} 문자)")
-        response = get_llm().invoke(messages)
-        response_text = response.content.strip()
+        if self.enable_rag:
+            response_text = invoke_with_tool_calls(
+                system_prompt=system_prompt,
+                user_prompt=prompt,
+                tools=[search_web_tool],
+                logger=self.logger,
+            )
+        else:
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=prompt),
+            ]
+            response = get_llm().invoke(messages)
+            response_text = response.content.strip()
+
         self.logger.info(f"[LLM] 응답 받음 (길이: {len(response_text)} 문자)")
         
         # JSON 파싱
@@ -198,13 +189,6 @@ class FlightSearchAgent:
 
         return True, ""
 
-    def _collect_availability_signals(self, search_context: str) -> list[str]:
-        """검색 컨텍스트의 가용성 관련 키워드 추출."""
-        if not search_context:
-            return []
-        lowered = search_context.lower()
-        return [kw for kw in self.availability_signal_keywords if kw.lower() in lowered]
-
     def _calculate_dates(self, state: TravelState) -> tuple:
         """여행 날짜 계산"""
         # 출발일 = 오늘 + 30일
@@ -229,8 +213,15 @@ class FlightSearchAgent:
 
 """
         
-        # RAG 컨텍스트 추가
-        if search_context:
+        if self.enable_rag:
+            tool_query = (
+                f"서울 {selected_city.get('city', '')} 항공권 운항 여부 예약 가능 여부 평균 가격 항공사"
+            )
+            prompt += (
+                "웹 검색이 필요하면 search_web 도구를 사용하세요.\n"
+                f"권장 검색어: {tool_query}\n"
+            )
+        elif search_context:
             prompt += f"{search_context}\n"
         
         prompt += """위 정보를 바탕으로 적절한 왕복 항공권을 추천해주세요.

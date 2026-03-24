@@ -4,6 +4,7 @@ import os
 import time
 from typing import List, Dict
 from duckduckgo_search import DDGS
+from langchain_core.tools import tool
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -196,3 +197,16 @@ def search_with_context(query: str, max_results: int = 5) -> str:
     )
 
     return context
+
+
+@tool("search_web")
+def search_web_tool(query: str, max_results: int = 5) -> str:
+    """DuckDuckGo 웹 검색을 실행하고 결과를 컨텍스트 문자열로 반환합니다."""
+    if not query or not query.strip():
+        return "검색어가 비어 있습니다."
+
+    results = search_web(query=query.strip(), max_results=max_results)
+    if not results:
+        return "검색 결과가 없습니다."
+
+    return format_search_results(results, heading="웹 검색 결과").strip()
