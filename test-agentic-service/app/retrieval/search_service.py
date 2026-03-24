@@ -210,3 +210,13 @@ def search_web_tool(query: str, max_results: int = 5) -> str:
         return "검색 결과가 없습니다."
 
     return format_search_results(results, heading="웹 검색 결과").strip()
+
+
+@tool("search_city_context")
+def search_city_context_tool(query: str, max_results: int = 5) -> str:
+    """도시 추천 단계용 하이브리드 RAG 컨텍스트 검색을 수행합니다."""
+    if not query or not query.strip():
+        return "검색어가 비어 있습니다."
+
+    context = search_with_context(query=query.strip(), max_results=max_results)
+    return context if context else "검색 결과가 없습니다."

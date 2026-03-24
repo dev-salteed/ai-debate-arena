@@ -10,10 +10,28 @@ APP_DIR = ROOT_DIR / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from retrieval.search_service import merge_contexts, search_with_context
+from retrieval.search_service import (
+    merge_contexts,
+    search_city_context_tool,
+    search_with_context,
+)
 
 
 class SearchServiceTests(unittest.TestCase):
+    @patch("retrieval.search_service.search_with_context")
+    def test_city_context_tool_calls_hybrid_search(self, mock_search_with_context):
+        mock_search_with_context.return_value = "도시 컨텍스트 결과"
+
+        result = search_city_context_tool.invoke(
+            {"query": "도쿄 여행 추천", "max_results": 4}
+        )
+
+        mock_search_with_context.assert_called_once_with(
+            query="도쿄 여행 추천",
+            max_results=4,
+        )
+        self.assertEqual(result, "도시 컨텍스트 결과")
+
     @patch("retrieval.search_service.search_web")
     @patch("retrieval.search_service.retrieve_with_vector")
     def test_hybrid_skips_web_when_vector_results_are_sufficient(

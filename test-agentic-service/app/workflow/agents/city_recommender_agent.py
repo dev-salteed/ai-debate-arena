@@ -3,7 +3,7 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 from utils.config import get_llm
 from utils.logger import setup_logger, log_agent_input, log_agent_output
-from retrieval.search_service import search_web_tool
+from retrieval.search_service import search_city_context_tool
 from workflow.state import TravelState, AgentType
 from workflow.agents.tool_runner import invoke_with_tool_calls
 from workflow.agents.response_guard import parse_json, missing_required_keys
@@ -77,7 +77,7 @@ Few-shot 예시 2:
         rag_instruction = ""
         if self.enable_rag:
             rag_instruction = (
-                "최신 정보가 필요하면 search_web 도구를 1회 이상 호출해 근거를 확인하세요."
+                "최신 정보가 필요하면 search_city_context 도구를 1회 이상 호출해 근거를 확인하세요."
             )
         else:
             rag_instruction = "도구를 사용하지 말고, 당신의 지식을 바탕으로 추천해주세요."
@@ -90,7 +90,7 @@ Few-shot 예시 2:
             response_text = invoke_with_tool_calls(
                 system_prompt=system_prompt,
                 user_prompt=prompt,
-                tools=[search_web_tool],
+                tools=[search_city_context_tool],
                 logger=self.logger,
             )
         else:
@@ -170,7 +170,7 @@ Few-shot 예시 2:
         if self.enable_rag:
             suggested_query = f"{state['travel_theme']} 여행 추천 도시 해외 최신 트렌드"
             prompt += (
-                f"웹 검색 필요 시 search_web를 사용하세요.\n"
+                f"도시 맥락 검색 필요 시 search_city_context를 사용하세요.\n"
                 f"권장 검색어: {suggested_query}\n"
             )
 

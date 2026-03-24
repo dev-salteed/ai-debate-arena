@@ -83,6 +83,42 @@ class PromptEngineeringTests(unittest.TestCase):
         self.assertGreaterEqual(len(new_state.get("recommended_cities", [])), 1)
         self.assertEqual(new_state.get("selected_city", {}).get("city"), "도쿄")
 
+    @patch("workflow.agents.city_recommender_agent.invoke_with_tool_calls")
+    def test_city_agent_uses_city_context_tool_when_rag_enabled(self, mock_invoke):
+        mock_invoke.return_value = (
+            '{"rationale":"검색 근거 반영","recommended_cities":[{"city":"도쿄","country":"일본","reason":"미식"}]}'
+        )
+
+        agent = CityRecommenderAgent(enable_rag=True)
+        state = {
+            "travel_theme": "미식 여행",
+            "travel_days": 4,
+            "budget": None,
+            "departure_city": "서울",
+            "recommended_cities": [],
+            "selected_city": None,
+            "flight_info": None,
+            "flight_available": False,
+            "flight_unavailability_reason": None,
+            "selected_city_index": 0,
+            "flight_search_attempts": 0,
+            "max_flight_search_attempts": 3,
+            "itinerary": None,
+            "decision_memory": [],
+            "constraints_memory": {},
+            "current_step": "",
+            "messages": [],
+            "completed": False,
+        }
+
+        new_state = agent.run(state)
+
+        self.assertEqual(new_state.get("selected_city", {}).get("city"), "도쿄")
+        self.assertTrue(mock_invoke.called)
+        passed_tools = mock_invoke.call_args.kwargs.get("tools", [])
+        self.assertEqual(len(passed_tools), 1)
+        self.assertEqual(getattr(passed_tools[0], "name", ""), "search_city_context")
+
 
 if __name__ == "__main__":
     unittest.main()
