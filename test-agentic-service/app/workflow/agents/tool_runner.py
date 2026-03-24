@@ -7,6 +7,12 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from utils.config import get_llm
 
+REACT_POLICY = """도구 사용 시 ReAct 방식으로 진행하세요.
+- Thought: 무엇을 확인할지 한 문장으로 내부 정리
+- Action: 필요한 도구 호출
+- Observation: 도구 결과를 근거로 반영
+최종 응답은 반드시 사용자 요구 JSON 스키마만 출력하세요."""
+
 
 def _content_to_text(content: Any) -> str:
     if isinstance(content, str):
@@ -34,7 +40,11 @@ def invoke_with_tool_calls(
     max_iterations: int = 3,
 ) -> str:
     """LLM에 도구를 바인딩해 tool call 루프를 수행하고 최종 텍스트를 반환한다."""
-    messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+    messages = [
+        SystemMessage(content=system_prompt),
+        SystemMessage(content=REACT_POLICY),
+        HumanMessage(content=user_prompt),
+    ]
 
     if not tools:
         response = get_llm().invoke(messages)
@@ -50,6 +60,9 @@ def invoke_with_tool_calls(
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
             return _content_to_text(response.content).strip()
+
+        if logger:
+            logger.info(f"[ReAct] iteration start tool_calls={len(tool_calls)}")
 
         for tool_call in tool_calls:
             tool_name = tool_call.get("name", "")
@@ -69,8 +82,8 @@ def invoke_with_tool_calls(
 
             if logger:
                 logger.info(
-                    f"[Tool 호출] {tool_name} args={tool_args} "
-                    f"result_len={len(str(tool_result))}"
+                    f"[ReAct] action={tool_name} args={tool_args} "
+                    f"observation_len={len(str(tool_result))}"
                 )
 
             messages.append(

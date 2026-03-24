@@ -9,7 +9,7 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용 | 명시적 ReAct 포맷 표준화 |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | - |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
 | 서비스 개발/패키징 | 상당 구현 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | Docker 배포(선택) |
 
@@ -23,7 +23,7 @@
 - [x] P1 Prompt: Few-shot + 일관성 보정 템플릿
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
-- [ ] P2 ReAct: Tool 실행 흐름 포맷 표준화
+- [x] P2 ReAct: Tool 실행 흐름 포맷 표준화
 - [ ] P3 Docker(선택): Streamlit + FastAPI 실행 환경
 
 ## 주요 기능
@@ -200,6 +200,11 @@ test-agentic-service/
 - `TravelState`에 `decision_memory`, `constraints_memory`를 추가해 선택/분기 히스토리 축적
 - Supervisor 분기 시 미가용 사유를 메모리에 기록하고 다음 검색에 재사용
 - Agent B/C 프롬프트에 최근 메모리를 주입해 재시도/후속 일정 품질 보강
+
+### ReAct 실행 표준화
+- `tool_runner`에 ReAct 정책(system rule) 추가
+- Tool 루프 로그를 `action/observation` 형식으로 구조화
+- 최종 응답은 기존 JSON 스키마를 유지하도록 강제
 
 ### Prompt Engineering 보강
 - 각 에이전트에 소형 Few-shot 예시를 포함해 출력 형식 일관성 강화

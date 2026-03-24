@@ -5,7 +5,7 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 상당 구현 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용 | 명시적 ReAct 포맷 표준화 |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | - |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹) | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
 | 서비스 개발/패키징 | 상당 구현 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | Docker 배포(선택) |
 
@@ -19,7 +19,7 @@
 - [x] P1 Prompt: Few-shot + 일관성 보정 템플릿
 - [x] P1 Memory: 상태 메모리 누적/재사용 고도화
 - [x] P1 FastAPI 백엔드: `GET /api/health`, `POST /api/plan`
-- [ ] P2 ReAct: Tool 실행 흐름 포맷 표준화
+- [x] P2 ReAct: Tool 실행 흐름 포맷 표준화
 - [ ] P3 Docker(선택): Streamlit + FastAPI 실행 환경
 
 ### **2.3 Prompt 보강 내용**
@@ -37,6 +37,11 @@
 - 헬스체크: `GET /api/health`
 - 플래너 실행: `POST /api/plan`
 - 요청/응답 스키마를 Pydantic으로 명시해 UI와 분리된 백엔드 실행 가능
+
+### **2.6 ReAct 표준화 내용**
+- `tool_runner`에 ReAct 정책(system rule)을 추가해 tool call 루프를 명시적으로 통일
+- 도구 실행 로그를 `action/observation` 구조로 기록해 디버깅 일관성 확보
+- 최종 응답은 기존 JSON 스키마를 유지하도록 제약
 
 ## **3. 주요 기능 및 동작 시나리오**
 
