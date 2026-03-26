@@ -33,6 +33,7 @@
 1. 과제 개요 문서 충실도
    - 기술별 설명(Prompt/LangGraph/RAG/UI)과 구현 근거 파일을 본 문서와 상세 문서에 동시 반영
    - 과거 문구 중 현재 구현과 불일치하는 표현(예: Tool Calling 미적용)을 삭제/정정
+   - 1단계 원문 기준 오해 소지가 있던 "Tool Calling 미적용" 서술을 현재 구현(`tool_runner`, `bind_tools`) 기준으로 정합화
 2. 검색 지식 통합
    - 도시 추천: `search_city_context` tool 기반
    - 항공권: `search_flight_context` tool observation을 `search_context`로 받아 응답/가용성 판단에 반영

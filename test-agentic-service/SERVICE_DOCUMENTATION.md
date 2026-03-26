@@ -124,6 +124,7 @@
   - Flight 단계 `search_flight_context` 통합 근거 문구
   - UI 멀티턴 범위(`thread_id`)와 API 단발 처리 경계
   - 평가 체크포인트 대응 항목별 근거/한계
+  - 1단계 원문 문서의 Tool Calling 미적용 뉘앙스를 현재 구현(`tool_runner`, `bind_tools`) 기준으로 정정
 - 삭제/수정:
   - Tool Calling 미적용으로 오해될 수 있는 과거 문구 제거
   - 테스트 수치 22 -> 28로 정정
