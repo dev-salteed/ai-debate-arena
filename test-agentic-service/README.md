@@ -9,7 +9,7 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 구현됨 | Multi-Agent(Supervisor+3 Worker), Tool Calling(`bind_tools`), 공통 ReAct policy, 상태 메모리 누적 | Worker 간 완전 자율 협업(A2A)까지는 미적용 |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent(Supervisor+3 Worker), Tool Calling(`bind_tools`), 공통 ReAct policy, 상태 메모리 누적, 항공권 실패 신호 기반 1회 재추천 루프 | Worker 간 완전 자율 협업(A2A)까지는 미적용 |
 | RAG | 상당 구현 | FAISS+웹 하이브리드, `search_city_context`, `search_flight_context`, Flight tool observation 기반 통합 | 재랭킹/멀티소스 결합 고도화 |
 | 맥락 유지/멀티턴 | 부분 구현 | LangGraph `MemorySaver` + `InMemoryStore`, Streamlit thread_id 기반 연속 실행 | 프로세스 재시작 시 맥락 소실(메모리형 한계), API 멀티턴 미반영 |
 | 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | - |
@@ -39,6 +39,7 @@
    - 항공권: `search_flight_context` tool observation을 `search_context`로 받아 응답/가용성 판단에 반영
 3. Multi-Agent 구조 설명 정밀화
    - 역할 분리는 유지하되, 현재 구조는 Supervisor 중심 순차 협업임을 명시
+   - 항공권 실패 시 `needs_replan/replan_reason`로 City 재추천을 요청하는 1회 협업 루프 반영
 4. 맥락 유지/멀티턴
    - LangGraph `MemorySaver` + `InMemoryStore` 적용
    - Streamlit UI에서 동일 `thread_id`로 이어서 재실행 지원
@@ -214,6 +215,11 @@ test-agentic-service/
 - Supervisor는 흐름 제어만 담당
 - 명확한 데이터 전달 구조
 
+### 협업 루프(신규)
+- `FlightSearchAgent`가 미가용 사유를 반환하면 `Supervisor`가 `needs_replan`을 설정해 `CityRecommenderAgent`에 재추천을 1회 요청
+- `CityRecommenderAgent`는 `replan_reason`을 프롬프트에 반영해 항공 접근성이 더 높은 대안을 재제안
+- 재추천 이후 `needs_replan=False`로 정리하고 항공권 단계를 재시도
+
 ### Memory 활용
 - `TravelState`에 `decision_memory`, `constraints_memory`를 추가해 선택/분기 히스토리 축적
 - Supervisor 분기 시 미가용 사유를 메모리에 기록하고 다음 검색에 재사용
@@ -227,7 +233,8 @@ test-agentic-service/
 ### 최신 검증 결과 (2026-03-24)
 - Streamlit UI와 FastAPI(`GET /api/health`, `POST /api/plan`) 모두 동일 워크플로우로 동작
 - Streamlit은 `thread_id` 기반 이어서 재실행(멀티턴) 지원
-- 테스트: `./venv/bin/python -m unittest discover -s tests` 기준 **28 tests, OK**
+- 테스트(현재 워크트리): `./venv/bin/python -m unittest discover -s tests` 기준 **28 tests, 2 failures**
+- 실패 항목: `tests/test_supervisor_agent.py`의 기존 분기 가정(직접 다음 도시 전환)과 신규 재추천 루프 동작 차이
 
 ### Prompt Engineering 보강
 - 각 에이전트에 소형 Few-shot 예시를 포함해 출력 형식 일관성 강화

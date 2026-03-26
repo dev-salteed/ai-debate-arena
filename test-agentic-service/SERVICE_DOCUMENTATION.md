@@ -34,6 +34,7 @@
 - Supervisor + Worker(도시추천/항공권/일정) Multi-Agent를 LangGraph 상태 그래프로 운영한다.
 - Supervisor는 항공권 미가용 시 다음 도시 재검색 분기와 재시도 제어를 담당한다.
 - `TravelState`의 `decision_memory`, `constraints_memory`를 누적해 후속 Agent 프롬프트에 재주입한다.
+- `TravelState`의 `needs_replan`, `replan_reason`, `replan_attempts`를 통해 항공권 실패 신호를 City 재추천으로 전달하는 1회 협업 루프를 운영한다.
 - 현재 협업 방식은 Supervisor 중심 순차 라우팅이며, Worker 간 독립 재계획(A2A) 구조는 향후 과제다.
 
 ### **2.3 RAG 구성**
@@ -73,7 +74,7 @@
 | 항목 | 구현 상태 | 구현 내용 | 미구현/보강 필요 |
 |------|----------|-----------|------------------|
 | Prompt Engineering | 상당 구현 | 역할 기반 system prompt, 입력 구조화, JSON 출력 강제, Few-shot 예시, 필수 키 누락 시 JSON 보정 1회 | CoT/추론 단계의 정교한 표준화 |
-| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화 | Worker 간 완전 자율 협업(A2A) |
+| LangChain/LangGraph Agent | 구현됨 | Multi-Agent, LangGraph Supervisor 분기, Tool Calling(`bind_tools`), 상태 메모리 누적/재사용, ReAct 실행 정책 표준화, 항공권 실패 기반 1회 재추천 루프 | Worker 간 완전 자율 협업(A2A) |
 | RAG | 상당 구현 | 데이터 전처리/청킹, 임베딩, FAISS, 하이브리드 검색(벡터+웹), Flight tool observation 기반 통합 | 고도화 항목(재랭킹/멀티소스 등)만 잔존 |
 | 맥락 유지/멀티턴 | 부분 구현 | LangGraph `MemorySaver` + `InMemoryStore`, UI `thread_id` 연속 실행 | 메모리형 한계(재시작 시 소실), API 멀티턴 미적용 |
 | 서비스 개발/패키징 | 구현됨 | Streamlit UI, FastAPI 백엔드(`GET /api/health`, `POST /api/plan`) | - |
@@ -134,9 +135,10 @@
 - Streamlit UI에서 입력(여행 주제/일수/예산/출발지) 후 Multi-Agent 파이프라인이 end-to-end로 동작한다.
 - FastAPI 경유 실행(`POST /api/plan`)도 동일 워크플로우로 처리된다(단발 호출).
 - Streamlit은 `thread_id` 기반 이어서 재실행(멀티턴)을 지원한다.
-- 테스트 결과(2026-03-24 기준):
+- 테스트 결과(현재 워크트리 기준):
   - `./venv/bin/python -m unittest discover -s tests`
-  - **28 tests, OK**
+  - **28 tests, 2 failures**
+  - `tests/test_supervisor_agent.py`의 기존 분기 기대값이 신규 재추천 루프와 달라 갱신 필요
 
 ## **6. 프로젝트 수행 소감 / 피드백 업데이트**
 - 초기에는 역할 분업 중심 MVP였으나, 현재는 Tool Calling/ReAct/상태 메모리까지 확장되어 Agentic 특성이 명확해졌다.
