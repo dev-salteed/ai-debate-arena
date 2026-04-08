@@ -4,7 +4,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-# Ensure `app` directory is importable.
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
 if str(APP_DIR) not in sys.path:
@@ -33,13 +32,13 @@ class _FakeLLM:
             self.first_invoke_messages = messages
         if self._idx >= len(self._responses):
             return self._responses[-1]
-        resp = self._responses[self._idx]
+        response = self._responses[self._idx]
         self._idx += 1
-        return resp
+        return response
 
 
 class _FakeTool:
-    name = "search_web"
+    name = "search_place_context"
 
     def invoke(self, args):
         return f"tool_result_for:{args.get('query', '')}"
@@ -55,28 +54,25 @@ class ToolRunnerReactTests(unittest.TestCase):
                     tool_calls=[
                         {
                             "id": "call-1",
-                            "name": "search_web",
-                            "args": {"query": "도쿄 여행"},
+                            "name": "search_place_context",
+                            "args": {"query": "홍대 데이트 카페"},
                         }
                     ],
                 ),
-                _FakeAIResponse(
-                    content='{"recommended_cities":[{"city":"도쿄","country":"일본","reason":"미식"}],"rationale":"검색 근거 반영"}'
-                ),
+                _FakeAIResponse(content='{"recommendations":[{"name":"카페 A"}]}'),
             ]
         )
         mock_get_llm.return_value = fake_llm
 
-        logger = logging.getLogger("test_tool_runner_react")
         result = invoke_with_tool_calls(
             system_prompt="테스트 시스템 프롬프트",
-            user_prompt="도시 추천",
+            user_prompt="홍대 데이트 카페 추천",
             tools=[_FakeTool()],
-            logger=logger,
+            logger=logging.getLogger("test_tool_runner_react"),
             max_iterations=3,
         )
 
-        self.assertIn("recommended_cities", result)
+        self.assertIn("recommendations", result)
         first_messages = fake_llm.first_invoke_messages
         self.assertEqual(first_messages[0].content, "테스트 시스템 프롬프트")
         self.assertIn("ReAct", first_messages[1].content)
@@ -90,8 +86,8 @@ class ToolRunnerReactTests(unittest.TestCase):
                     tool_calls=[
                         {
                             "id": "call-1",
-                            "name": "search_web",
-                            "args": {"query": "오슬로 항공권"},
+                            "name": "search_place_context",
+                            "args": {"query": "강남 조용한 카페"},
                         }
                     ],
                 ),
@@ -102,7 +98,7 @@ class ToolRunnerReactTests(unittest.TestCase):
 
         final_text, last_observation = invoke_with_tool_calls(
             system_prompt="테스트 시스템 프롬프트",
-            user_prompt="항공권 검색",
+            user_prompt="강남 조용한 카페 추천",
             tools=[_FakeTool()],
             logger=logging.getLogger("test_tool_runner_observation"),
             max_iterations=3,
@@ -110,7 +106,7 @@ class ToolRunnerReactTests(unittest.TestCase):
         )
 
         self.assertIn('"ok":true', final_text)
-        self.assertIn("tool_result_for:오슬로 항공권", last_observation)
+        self.assertIn("tool_result_for:강남 조용한 카페", last_observation)
 
 
 if __name__ == "__main__":

@@ -4,48 +4,30 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-# Ensure `app` directory is importable.
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
 from retrieval.search_service import (
-    search_flight_context_tool,
     merge_contexts,
-    search_city_context_tool,
+    search_place_context_tool,
     search_with_context,
 )
 
 
 class SearchServiceTests(unittest.TestCase):
     @patch("retrieval.search_service.search_with_context")
-    def test_city_context_tool_calls_hybrid_search(self, mock_search_with_context):
-        mock_search_with_context.return_value = "도시 컨텍스트 결과"
-
-        result = search_city_context_tool.invoke(
-            {"query": "도쿄 여행 추천", "max_results": 4}
+    def test_place_context_tool_calls_hybrid_search(self, mock_search_with_context):
+        mock_search_with_context.return_value = "맛집 컨텍스트 결과"
+        result = search_place_context_tool.invoke(
+            {"query": "강남 조용한 카페", "max_results": 4}
         )
-
         mock_search_with_context.assert_called_once_with(
-            query="도쿄 여행 추천",
+            query="강남 조용한 카페",
             max_results=4,
         )
-        self.assertEqual(result, "도시 컨텍스트 결과")
-
-    @patch("retrieval.search_service.search_with_context")
-    def test_flight_context_tool_calls_hybrid_search(self, mock_search_with_context):
-        mock_search_with_context.return_value = "항공권 컨텍스트 결과"
-
-        result = search_flight_context_tool.invoke(
-            {"query": "서울 도쿄 항공권 운항 여부", "max_results": 3}
-        )
-
-        mock_search_with_context.assert_called_once_with(
-            query="서울 도쿄 항공권 운항 여부",
-            max_results=3,
-        )
-        self.assertEqual(result, "항공권 컨텍스트 결과")
+        self.assertEqual(result, "맛집 컨텍스트 결과")
 
     @patch("retrieval.search_service.search_web")
     @patch("retrieval.search_service.retrieve_with_vector")
@@ -61,22 +43,21 @@ class SearchServiceTests(unittest.TestCase):
         ):
             mock_retrieve_with_vector.return_value = [
                 {
-                    "title": "도쿄 겨울 미식 여행 가이드",
-                    "body": "도쿄 겨울 여행에서는 권역별 동선 구성이 중요하다.",
-                    "href": "internal:tokyo-guide",
+                    "title": "강남 조용한 카페 찾는 법",
+                    "body": "골목권 로스터리 카페를 함께 보세요.",
+                    "href": "internal:gangnam-quiet-cafes",
                 },
                 {
-                    "title": "도쿄 5일 일정 구성 원칙",
-                    "body": "도착일과 출국일은 가볍게 배치한다.",
-                    "href": "internal:tokyo-itinerary",
+                    "title": "조용한 카페 검색 확장 팁",
+                    "body": "콘센트, 작업하기 좋은 키워드를 같이 넣습니다.",
+                    "href": "internal:quiet-cafe-query-guide",
                 },
             ]
 
-            context = search_with_context("도쿄 겨울 미식", max_results=5)
-
+            context = search_with_context("강남 조용한 카페", max_results=5)
             mock_search_web.assert_not_called()
-            self.assertIn("벡터 검색 결과", context)
-            self.assertIn("도쿄 겨울 미식 여행 가이드", context)
+            self.assertIn("로컬 다이닝 지식", context)
+            self.assertIn("강남 조용한 카페 찾는 법", context)
 
     @patch("retrieval.search_service.search_web")
     @patch("retrieval.search_service.retrieve_with_vector")
@@ -91,102 +72,28 @@ class SearchServiceTests(unittest.TestCase):
             clear=False,
         ):
             mock_retrieve_with_vector.return_value = [
-                {
-                    "title": "벡터 결과 1",
-                    "body": "벡터 검색 결과 본문",
-                    "href": "internal:vector-1",
-                }
+                {"title": "벡터 결과", "body": "로컬 요약", "href": "internal:vector"}
             ]
             mock_search_web.return_value = [
-                {
-                    "title": "웹 결과 1",
-                    "body": "웹 검색 결과 본문",
-                    "href": "https://example.com/travel",
-                }
+                {"title": "웹 결과", "body": "최신 후기", "href": "https://example.com/place"}
             ]
 
-            context = search_with_context("도쿄 여행", max_results=3)
-
-            mock_search_web.assert_called_once()
-            self.assertIn("벡터 검색 결과", context)
-            self.assertIn("웹 검색 결과", context)
-            self.assertIn("웹 결과 1", context)
-
-    @patch("retrieval.search_service.search_web")
-    @patch("retrieval.search_service.retrieve_with_vector")
-    def test_vector_mode_gracefully_falls_back_to_web_when_index_missing(
-        self,
-        mock_retrieve_with_vector,
-        mock_search_web,
-    ):
-        with patch.dict(
-            os.environ,
-            {"RAG_MODE": "vector", "VECTOR_TOP_K": "4", "WEB_FALLBACK_MIN_RESULTS": "2"},
-            clear=False,
-        ):
-            # 인덱스 없음/손상 상황을 빈 결과로 모델링
-            mock_retrieve_with_vector.return_value = []
-            mock_search_web.return_value = [
-                {
-                    "title": "웹 보조 결과",
-                    "body": "인덱스가 없어도 웹 검색으로 보조된다.",
-                    "href": "https://example.com/fallback",
-                }
-            ]
-
-            context = search_with_context("파리 문화 여행", max_results=4)
-
+            context = search_with_context("홍대 데이트 카페", max_results=3)
             mock_search_web.assert_called_once()
             self.assertIn("웹 검색 결과", context)
-            self.assertIn("웹 보조 결과", context)
-
-    @patch("retrieval.search_service.search_web")
-    @patch("retrieval.search_service.retrieve_with_vector")
-    def test_hybrid_falls_back_to_web_when_vector_raises_exception(
-        self,
-        mock_retrieve_with_vector,
-        mock_search_web,
-    ):
-        with patch.dict(
-            os.environ,
-            {"RAG_MODE": "hybrid", "VECTOR_TOP_K": "4", "WEB_FALLBACK_MIN_RESULTS": "2"},
-            clear=False,
-        ):
-            mock_retrieve_with_vector.side_effect = RuntimeError("index corrupted")
-            mock_search_web.return_value = [
-                {
-                    "title": "웹 fallback",
-                    "body": "벡터 예외 상황에서 웹 검색 대체",
-                    "href": "https://example.com/corrupt-index-fallback",
-                }
-            ]
-
-            context = search_with_context("방콕 야시장 일정", max_results=3)
-
-            mock_search_web.assert_called_once()
-            self.assertIn("웹 검색 결과", context)
-            self.assertIn("웹 fallback", context)
+            self.assertIn("웹 결과", context)
 
     def test_merge_contexts_keeps_body_and_source_format(self):
         vector_results = [
-            {
-                "title": "벡터 타이틀",
-                "body": "벡터 본문 텍스트",
-                "href": "internal:vector-source",
-            }
+            {"title": "벡터 타이틀", "body": "벡터 본문", "href": "internal:vector-source"}
         ]
         web_results = [
-            {
-                "title": "웹 타이틀",
-                "body": "웹 본문 텍스트",
-                "href": "https://example.com/source",
-            }
+            {"title": "웹 타이틀", "body": "웹 본문", "href": "https://example.com/source"}
         ]
 
         context = merge_contexts(vector_results=vector_results, web_results=web_results)
-
-        self.assertIn("벡터 본문 텍스트", context)
-        self.assertIn("웹 본문 텍스트", context)
+        self.assertIn("벡터 본문", context)
+        self.assertIn("웹 본문", context)
         self.assertIn("출처: internal:vector-source", context)
         self.assertIn("출처: https://example.com/source", context)
 

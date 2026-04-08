@@ -1,4 +1,4 @@
-"""FAISS 기반 벡터 스토어 유틸리티."""
+"""FAISS vector store utilities for local dining knowledge."""
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -8,32 +8,25 @@ from langchain_core.documents import Document
 
 try:
     from utils.config import get_embeddings
-except ModuleNotFoundError:  # python -m app.retrieval.build_index 대응
+except ModuleNotFoundError:
     from app.utils.config import get_embeddings
 
 logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 INDEX_DIR = BASE_DIR / "index"
-INDEX_NAME = "travel_knowledge"
+INDEX_NAME = "dining_knowledge"
 
 _vector_store: Optional[FAISS] = None
 
 
 def _index_exists(index_dir: Path = INDEX_DIR, index_name: str = INDEX_NAME) -> bool:
-    """FAISS 인덱스 파일 존재 여부 확인."""
-    faiss_file = index_dir / f"{index_name}.faiss"
-    pkl_file = index_dir / f"{index_name}.pkl"
-    return faiss_file.exists() and pkl_file.exists()
+    return (index_dir / f"{index_name}.faiss").exists() and (
+        index_dir / f"{index_name}.pkl"
+    ).exists()
 
 
 def load_vector_store(force_reload: bool = False) -> Optional[FAISS]:
-    """
-    로컬 FAISS 인덱스를 로드한다.
-
-    Returns:
-        FAISS 인스턴스 또는 None(인덱스 없음/로드 실패)
-    """
     global _vector_store
 
     if _vector_store is not None and not force_reload:
@@ -55,8 +48,8 @@ def load_vector_store(force_reload: bool = False) -> Optional[FAISS]:
         )
         logger.info("[Vector RAG] 인덱스 로드 완료")
         return _vector_store
-    except Exception as e:
-        logger.error(f"[Vector RAG] 인덱스 로드 실패: {e}")
+    except Exception as exc:
+        logger.error(f"[Vector RAG] 인덱스 로드 실패: {exc}")
         return None
 
 
@@ -65,17 +58,10 @@ def build_vector_index(
     index_dir: Path = INDEX_DIR,
     index_name: str = INDEX_NAME,
 ) -> int:
-    """
-    문서 리스트로 FAISS 인덱스를 생성/저장한다.
-
-    Returns:
-        인덱싱된 문서 수
-    """
     if not documents:
         raise ValueError("인덱싱할 문서가 없습니다.")
 
     index_dir.mkdir(parents=True, exist_ok=True)
-
     embeddings = get_embeddings()
     vector_store = FAISS.from_documents(documents=documents, embedding=embeddings)
     vector_store.save_local(folder_path=str(index_dir), index_name=index_name)
@@ -85,45 +71,34 @@ def build_vector_index(
 
 
 def retrieve(query: str, k: int = 4) -> List[Dict[str, str]]:
-    """
-    벡터 유사도 검색 수행.
-
-    Returns:
-        search_service와 동일한 포맷의 결과 리스트
-        [{"title": "...", "body": "...", "href": "..."}]
-    """
     store = load_vector_store()
     if store is None:
         return []
 
     try:
         results = store.similarity_search_with_score(query=query, k=max(1, k))
-    except Exception as e:
-        logger.error(f"[Vector RAG] 검색 실패: {e}")
+    except Exception as exc:
+        logger.error(f"[Vector RAG] 검색 실패: {exc}")
         return []
 
     formatted: List[Dict[str, str]] = []
     for doc, score in results:
         metadata = doc.metadata or {}
-        title = metadata.get("title") or metadata.get("city") or "로컬 여행 지식"
-        source = metadata.get("source", "local-knowledge")
+        title = metadata.get("title") or metadata.get("region") or "로컬 다이닝 지식"
         body = (doc.page_content or "").strip()
         if not body:
             continue
 
+        source = metadata.get("source", "local-knowledge")
+        region = metadata.get("region", "")
         category = metadata.get("category", "")
         updated_at = metadata.get("updated_at", "")
         score_text = f"{float(score):.4f}"
-        extra = ", ".join([x for x in [category, updated_at, f"score={score_text}"] if x])
-        href = f"{source} ({extra})" if extra else source
-
-        formatted.append(
-            {
-                "title": title,
-                "body": body,
-                "href": href,
-            }
+        extra = ", ".join(
+            [value for value in [region, category, updated_at, f"score={score_text}"] if value]
         )
+        href = f"{source} ({extra})" if extra else source
+        formatted.append({"title": title, "body": body, "href": href})
 
     logger.info(f"[Vector RAG] 검색 완료: {len(formatted)}개")
     return formatted

@@ -2,7 +2,6 @@ import sys
 import unittest
 from pathlib import Path
 
-# Ensure `app` directory is importable.
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
 if str(APP_DIR) not in sys.path:
@@ -14,25 +13,20 @@ from workflow.state import AgentType
 
 def make_state(**overrides):
     base = {
-        "travel_theme": "테스트",
-        "travel_days": 5,
-        "budget": None,
-        "departure_city": "서울",
-        "recommended_cities": [
-            {"city": "도쿄", "country": "일본", "reason": "가깝고 인기"},
-            {"city": "오사카", "country": "일본", "reason": "미식 여행"},
-        ],
-        "selected_city": {"city": "도쿄", "country": "일본", "reason": "가깝고 인기"},
-        "selected_city_index": 0,
-        "flight_info": None,
-        "flight_available": False,
-        "flight_unavailability_reason": "운항 없음",
-        "flight_search_attempts": 1,
-        "max_flight_search_attempts": 3,
-        "itinerary": None,
+        "user_query": "홍대 데이트 카페 추천",
+        "parsed_query": {
+            "region": "홍대",
+            "venue_type": "카페",
+            "purpose": "데이트",
+        },
+        "search_brief": {},
+        "candidate_places": [],
+        "recommendations": None,
+        "search_iterations": 1,
+        "max_search_iterations": 2,
         "decision_memory": [],
         "constraints_memory": {},
-        "current_step": AgentType.FLIGHT_SEARCH,
+        "current_step": AgentType.RAG_PROCESSOR,
         "messages": [],
         "completed": False,
     }
@@ -44,29 +38,23 @@ class SupervisorRoutingTests(unittest.TestCase):
     def setUp(self):
         self.supervisor = SupervisorAgent()
 
-    def test_routes_to_itinerary_when_flight_available(self):
-        state = make_state(flight_available=True)
+    def test_routes_to_recommendation_when_candidates_exist(self):
+        state = make_state(candidate_places=[{"name": "카페 A"}])
         routed = self.supervisor.route_next(state)
-        self.assertEqual(routed, AgentType.ITINERARY_PLANNER)
+        self.assertEqual(routed, AgentType.RECOMMENDATION)
 
-    def test_switches_to_next_city_and_retries_when_unavailable(self):
+    def test_retries_search_when_candidates_are_missing(self):
         state = make_state()
         updated = self.supervisor.run(state)
-
-        self.assertEqual(updated.get("selected_city_index"), 1)
-        self.assertEqual(updated.get("selected_city", {}).get("city"), "오사카")
-        self.assertIn("분기", updated.get("messages", [])[-1].get("content"))
-        self.assertGreaterEqual(len(updated.get("decision_memory", [])), 1)
-        self.assertIn("last_flight_unavailability_reason", updated.get("constraints_memory", {}))
-
+        self.assertEqual(updated["constraints_memory"]["broaden_search"], "true")
+        self.assertIn("검색 범위를 완화", updated["messages"][-1]["content"])
         routed = self.supervisor.route_next(updated)
-        self.assertEqual(routed, AgentType.FLIGHT_SEARCH)
+        self.assertEqual(routed, AgentType.PLACE_SEARCH)
 
-    def test_routes_to_itinerary_when_no_more_retry_candidates(self):
-        state = make_state(selected_city_index=1, flight_search_attempts=3)
-        updated = self.supervisor.run(state)
-        routed = self.supervisor.route_next(updated)
-        self.assertEqual(routed, AgentType.ITINERARY_PLANNER)
+    def test_routes_to_recommendation_when_retry_budget_is_exhausted(self):
+        state = make_state(search_iterations=2)
+        routed = self.supervisor.route_next(state)
+        self.assertEqual(routed, AgentType.RECOMMENDATION)
 
 
 if __name__ == "__main__":

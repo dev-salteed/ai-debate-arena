@@ -1,4 +1,4 @@
-"""로컬 여행 지식 데이터로 FAISS 인덱스를 빌드하는 스크립트."""
+"""Build a FAISS index for local dining knowledge."""
 import argparse
 import logging
 import shutil
@@ -13,17 +13,17 @@ except ModuleNotFoundError:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build local FAISS index for Vector RAG.")
+    parser = argparse.ArgumentParser(description="Build local FAISS index for dining RAG.")
     parser.add_argument(
         "--data-dir",
         type=str,
         default=str(Path(__file__).resolve().parent / "data"),
-        help="지식 데이터 폴더 경로 (JSON/Markdown)",
+        help="로컬 지식 데이터 폴더 경로 (JSON/Markdown)",
     )
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=400,
+        default=420,
         help="청크 크기 (문자 단위)",
     )
     parser.add_argument(
@@ -48,7 +48,6 @@ def main() -> int:
     )
 
     args = parse_args()
-
     data_dir = Path(args.data_dir).resolve()
     if not data_dir.exists():
         logging.error(f"지식 데이터 폴더가 없습니다: {data_dir}")
@@ -58,7 +57,7 @@ def main() -> int:
         logging.info(f"기존 인덱스 삭제: {INDEX_DIR}")
         shutil.rmtree(INDEX_DIR)
 
-    logging.info("지식 문서 로딩 중...")
+    logging.info("다이닝 지식 문서 로딩 중...")
     documents = load_knowledge_documents(
         data_dir=data_dir,
         chunk_size=args.chunk_size,
@@ -75,7 +74,6 @@ def main() -> int:
     logging.info("인덱스 빌드 완료")
     logging.info(f"- 저장 위치: {INDEX_DIR}")
     logging.info(f"- 인덱스 이름: {INDEX_NAME}")
-    logging.info("다음 실행부터 하이브리드 RAG에서 벡터 검색이 자동 사용됩니다.")
     return 0
 
 

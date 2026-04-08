@@ -3,15 +3,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-# Ensure `app` directory is importable.
 ROOT_DIR = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT_DIR / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-from workflow.agents.city_recommender_agent import CityRecommenderAgent
-from workflow.agents.flight_search_agent import FlightSearchAgent
-from workflow.agents.itinerary_agent import ItineraryAgent
+from workflow.agents.place_search_agent import PlaceSearchAgent
+from workflow.agents.query_parser_agent import QueryParserAgent
+from workflow.agents.recommendation_agent import RecommendationAgent
 
 
 class _FakeResponse:
@@ -32,92 +31,79 @@ class _SequentialLLM:
         return _FakeResponse(content)
 
 
+def make_state():
+    return {
+        "user_query": "강남에서 조용한 카페 추천해줘",
+        "parsed_query": {},
+        "search_brief": {},
+        "candidate_places": [],
+        "recommendations": None,
+        "search_iterations": 0,
+        "max_search_iterations": 2,
+        "decision_memory": [],
+        "constraints_memory": {},
+        "current_step": "",
+        "messages": [],
+        "completed": False,
+    }
+
+
 class PromptEngineeringTests(unittest.TestCase):
     def test_prompts_include_few_shot_and_consistency_guards(self):
-        city = CityRecommenderAgent(enable_rag=False)
-        flight = FlightSearchAgent(enable_rag=False)
-        itinerary = ItineraryAgent(enable_rag=False)
+        parser = QueryParserAgent()
+        search = PlaceSearchAgent(enable_rag=False)
+        recommendation = RecommendationAgent()
 
-        self.assertIn("Few-shot 예시", city.system_prompt)
-        self.assertIn("Few-shot 예시", flight.system_prompt)
-        self.assertIn("Few-shot 예시", itinerary.system_prompt)
+        self.assertIn("Few-shot 예시", parser.system_prompt)
+        self.assertIn("Few-shot 예시", search.system_prompt)
+        self.assertIn("Few-shot 예시", recommendation.system_prompt)
+        self.assertIn("rationale", parser.system_prompt)
+        self.assertIn("필수 키", parser.system_prompt)
 
-        self.assertIn("rationale", city.system_prompt)
-        self.assertIn("rationale", flight.system_prompt)
-        self.assertIn("rationale", itinerary.system_prompt)
-        self.assertIn("필수 키", city.system_prompt)
-
-    @patch("workflow.agents.city_recommender_agent.get_llm")
-    def test_city_agent_repairs_missing_required_keys_once(self, mock_get_llm):
-        # 첫 응답은 rationale 누락, 두 번째 응답은 보정 JSON
+    @patch("workflow.agents.query_parser_agent.get_llm")
+    def test_query_parser_repairs_missing_required_keys_once(self, mock_get_llm):
         mock_get_llm.return_value = _SequentialLLM(
             [
-                """{"recommended_cities":[{"city":"도쿄","country":"일본","reason":"미식"}]}""",
-                """{"rationale":"입력이 제한적이라 미식 접근성 기준으로 추천","recommended_cities":[{"city":"도쿄","country":"일본","reason":"미식"}]}""",
+                """{"region":"강남","venue_type":"카페","purpose":"작업","atmosphere":["조용한"],"price_range":"중간","must_have":[],"avoid":[],"search_queries":["강남 조용한 카페"],"response_language":"ko"}""",
+                """{"region":"강남","subregion":"","venue_type":"카페","purpose":"작업","atmosphere":["조용한"],"price_range":"중간","must_have":[],"avoid":[],"search_queries":["강남 조용한 카페"],"response_language":"ko","rationale":"작업 목적과 조용한 분위기를 반영했습니다."}""",
             ]
         )
 
-        agent = CityRecommenderAgent(enable_rag=False)
-        state = {
-            "travel_theme": "미식 여행",
-            "travel_days": 4,
-            "budget": None,
-            "departure_city": "서울",
-            "recommended_cities": [],
-            "selected_city": None,
-            "flight_info": None,
-            "flight_available": False,
-            "flight_unavailability_reason": None,
-            "selected_city_index": 0,
-            "flight_search_attempts": 0,
-            "max_flight_search_attempts": 3,
-            "itinerary": None,
-            "decision_memory": [],
-            "constraints_memory": {},
-            "current_step": "",
-            "messages": [],
-            "completed": False,
+        agent = QueryParserAgent()
+        new_state = agent.run(make_state())
+        self.assertEqual(new_state["parsed_query"]["region"], "강남")
+        self.assertEqual(new_state["parsed_query"]["rationale"], "작업 목적과 조용한 분위기를 반영했습니다.")
+
+    @patch("workflow.agents.place_search_agent.invoke_with_tool_calls")
+    def test_place_search_uses_place_context_tool_when_rag_enabled(self, mock_invoke):
+        mock_invoke.return_value = """{
+          "search_strategy": "조용한 작업 카페 위주 탐색",
+          "queries_used": ["강남 조용한 카페 작업"],
+          "source_highlights": [{"place":"카페 A","evidence":"넓은 좌석","source":"검색 결과 1"}],
+          "freshness_note": "최근 후기 반영",
+          "rationale": "검색 결과 요약"
+        }"""
+
+        agent = PlaceSearchAgent(enable_rag=True)
+        state = make_state()
+        state["parsed_query"] = {
+            "region": "강남",
+            "subregion": "",
+            "venue_type": "카페",
+            "purpose": "작업",
+            "atmosphere": ["조용한"],
+            "price_range": "중간",
+            "must_have": [],
+            "avoid": [],
+            "search_queries": ["강남 조용한 카페 작업"],
         }
 
         new_state = agent.run(state)
-        self.assertGreaterEqual(len(new_state.get("recommended_cities", [])), 1)
-        self.assertEqual(new_state.get("selected_city", {}).get("city"), "도쿄")
-
-    @patch("workflow.agents.city_recommender_agent.invoke_with_tool_calls")
-    def test_city_agent_uses_city_context_tool_when_rag_enabled(self, mock_invoke):
-        mock_invoke.return_value = (
-            '{"rationale":"검색 근거 반영","recommended_cities":[{"city":"도쿄","country":"일본","reason":"미식"}]}'
+        self.assertEqual(new_state["search_brief"]["queries_used"][0], "강남 조용한 카페 작업")
+        self.assertEqual(
+            getattr(mock_invoke.call_args.kwargs["tools"][0], "name", ""),
+            "search_place_context",
         )
-
-        agent = CityRecommenderAgent(enable_rag=True)
-        state = {
-            "travel_theme": "미식 여행",
-            "travel_days": 4,
-            "budget": None,
-            "departure_city": "서울",
-            "recommended_cities": [],
-            "selected_city": None,
-            "flight_info": None,
-            "flight_available": False,
-            "flight_unavailability_reason": None,
-            "selected_city_index": 0,
-            "flight_search_attempts": 0,
-            "max_flight_search_attempts": 3,
-            "itinerary": None,
-            "decision_memory": [],
-            "constraints_memory": {},
-            "current_step": "",
-            "messages": [],
-            "completed": False,
-        }
-
-        new_state = agent.run(state)
-
-        self.assertEqual(new_state.get("selected_city", {}).get("city"), "도쿄")
-        self.assertTrue(mock_invoke.called)
-        passed_tools = mock_invoke.call_args.kwargs.get("tools", [])
-        self.assertEqual(len(passed_tools), 1)
-        self.assertEqual(getattr(passed_tools[0], "name", ""), "search_city_context")
 
 
 if __name__ == "__main__":
