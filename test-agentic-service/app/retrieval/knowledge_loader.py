@@ -1,4 +1,6 @@
 """로컬 지식 데이터 로딩/청킹 유틸리티."""
+from __future__ import annotations
+
 import json
 import logging
 import re
@@ -50,7 +52,7 @@ def chunk_text(text: str, chunk_size: int = 400, chunk_overlap: int = 80) -> Lis
 
 
 def _load_json_records(file_path: Path) -> List[Dict]:
-    """JSON 파일에서 지식 레코드 로드."""
+    """JSON 파일에서 지식 레코드를 로드한다."""
     with file_path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
@@ -64,7 +66,7 @@ def _load_json_records(file_path: Path) -> List[Dict]:
 
 
 def _parse_front_matter(md_text: str) -> Tuple[Dict[str, str], str]:
-    """Markdown front matter 파싱."""
+    """Markdown front matter를 파싱한다."""
     if not md_text.startswith("---\n"):
         return {}, md_text
 
@@ -84,12 +86,12 @@ def _parse_front_matter(md_text: str) -> Tuple[Dict[str, str], str]:
 
 
 def _load_markdown_record(file_path: Path) -> Dict:
-    """Markdown 파일을 단일 지식 레코드로 변환."""
+    """Markdown 파일을 단일 지식 레코드로 변환한다."""
     text = file_path.read_text(encoding="utf-8")
     meta, body = _parse_front_matter(text)
     return {
         "title": meta.get("title", file_path.stem),
-        "city": meta.get("city", ""),
+        "region": meta.get("region", ""),
         "country": meta.get("country", ""),
         "category": meta.get("category", "guide"),
         "source": meta.get("source", f"file:{file_path.name}"),
@@ -103,7 +105,7 @@ def _record_to_documents(
     chunk_size: int = 400,
     chunk_overlap: int = 80,
 ) -> List[Document]:
-    """지식 레코드를 청크 단위 Document 리스트로 변환."""
+    """지식 레코드를 청크 단위 Document 리스트로 변환한다."""
     base_text = normalize_text(str(record.get("text", "")))
     if not base_text:
         return []
@@ -115,7 +117,7 @@ def _record_to_documents(
     title = str(record.get("title", "Untitled")).strip()
     metadata_common = {
         "title": title,
-        "city": str(record.get("city", "")).strip(),
+        "region": str(record.get("region", "")).strip(),
         "country": str(record.get("country", "")).strip(),
         "category": str(record.get("category", "guide")).strip(),
         "source": str(record.get("source", "local-dataset")).strip(),
@@ -141,10 +143,10 @@ def load_knowledge_documents(
     chunk_size: int = 400,
     chunk_overlap: int = 80,
 ) -> List[Document]:
-    """지식 데이터(JSON/Markdown)를 Document 리스트로 로드."""
+    """지식 데이터(JSON/Markdown)를 Document 리스트로 로드한다."""
     data_dir = Path(data_dir)
     if not data_dir.exists():
-        logger.warning(f"[Vector RAG] 지식 데이터 폴더 없음: {data_dir}")
+        logger.warning(f"[오늘 뭐해?] 지식 데이터 폴더 없음: {data_dir}")
         return []
 
     documents: List[Document] = []
@@ -164,8 +166,8 @@ def load_knowledge_documents(
                     chunk_overlap=chunk_overlap,
                 )
                 documents.extend(docs)
-        except Exception as e:
-            logger.error(f"[Vector RAG] JSON 로딩 실패: {json_file} ({e})")
+        except Exception as exc:  # pragma: no cover - data path fallback
+            logger.error(f"[오늘 뭐해?] JSON 로딩 실패: {json_file} ({exc})")
 
     for md_file in md_files:
         try:
@@ -176,12 +178,11 @@ def load_knowledge_documents(
                 chunk_overlap=chunk_overlap,
             )
             documents.extend(docs)
-        except Exception as e:
-            logger.error(f"[Vector RAG] Markdown 로딩 실패: {md_file} ({e})")
+        except Exception as exc:  # pragma: no cover - data path fallback
+            logger.error(f"[오늘 뭐해?] Markdown 로딩 실패: {md_file} ({exc})")
 
     logger.info(
-        f"[Vector RAG] 지식 문서 로드 완료: {len(documents)}개 "
+        f"[오늘 뭐해?] 지식 문서 로드 완료: {len(documents)}개 "
         f"(json={len(json_files)}, md={len(md_files)})"
     )
     return documents
-

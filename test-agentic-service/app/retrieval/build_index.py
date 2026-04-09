@@ -1,4 +1,6 @@
-"""로컬 여행 지식 데이터로 FAISS 인덱스를 빌드하는 스크립트."""
+"""로컬 지식 데이터로 FAISS 인덱스를 빌드하는 스크립트."""
+from __future__ import annotations
+
 import argparse
 import logging
 import shutil
@@ -7,13 +9,13 @@ from pathlib import Path
 try:
     from retrieval.knowledge_loader import load_knowledge_documents
     from retrieval.vector_store import INDEX_DIR, INDEX_NAME, build_vector_index
-except ModuleNotFoundError:
+except ModuleNotFoundError:  # pragma: no cover - import path fallback
     from app.retrieval.knowledge_loader import load_knowledge_documents
     from app.retrieval.vector_store import INDEX_DIR, INDEX_NAME, build_vector_index
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build local FAISS index for Vector RAG.")
+    parser = argparse.ArgumentParser(description="Build local FAISS index for 오늘 뭐해?")
     parser.add_argument(
         "--data-dir",
         type=str,
@@ -75,7 +77,7 @@ def main() -> int:
     logging.info("인덱스 빌드 완료")
     logging.info(f"- 저장 위치: {INDEX_DIR}")
     logging.info(f"- 인덱스 이름: {INDEX_NAME}")
-    logging.info("다음 실행부터 하이브리드 RAG에서 벡터 검색이 자동 사용됩니다.")
+    logging.info("다음 실행부터 로컬 벡터 검색이 자동 사용됩니다.")
     return 0
 
 

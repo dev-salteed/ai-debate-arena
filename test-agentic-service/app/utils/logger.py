@@ -1,10 +1,9 @@
-"""로깅 시스템 설정"""
+"""Logging helpers for the 오늘 뭐해? service."""
 import logging
 import sys
-from datetime import datetime
 
 
-def setup_logger(name: str = "travel_agent", level: int = logging.INFO) -> logging.Logger:
+def setup_logger(name: str = "today_what", level: int = logging.INFO) -> logging.Logger:
     """
     로거 설정
     
@@ -35,6 +34,7 @@ def setup_logger(name: str = "travel_agent", level: int = logging.INFO) -> loggi
     console_handler.setFormatter(formatter)
     
     logger.addHandler(console_handler)
+    logger.propagate = False
     
     return logger
 
@@ -45,9 +45,11 @@ def log_agent_input(logger: logging.Logger, agent_name: str, state: dict):
     logger.info(f"[{agent_name}] 실행 시작")
     logger.info(f"{'='*60}")
     logger.info(f"입력 상태:")
-    logger.info(f"  - 여행 주제: {state.get('travel_theme', 'N/A')}")
-    logger.info(f"  - 여행 일수: {state.get('travel_days', 'N/A')}일")
-    logger.info(f"  - 예산: {state.get('budget', 'N/A'):,}원" if state.get('budget') else "  - 예산: 미정")
+    logger.info(f"  - 사용자 요청: {state.get('user_query', 'N/A')}")
+    logger.info(f"  - 지역: {state.get('region', 'N/A')}")
+    logger.info(f"  - 동행: {state.get('companion', 'N/A')}")
+    logger.info(f"  - 날씨: {state.get('weather', 'N/A')}")
+    logger.info(f"  - 시간대: {state.get('time_slot', 'N/A')}")
     logger.info(f"  - 현재 단계: {state.get('current_step', 'N/A')}")
 
 
