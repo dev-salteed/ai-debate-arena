@@ -1,4 +1,4 @@
-"""FastAPI backend for travel planning workflow."""
+"""FastAPI backend for the 오늘 뭐해? workflow."""
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
@@ -7,28 +7,31 @@ import uuid
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from workflow.graph import create_travel_graph
-from workflow.state import TravelState
+from workflow.graph import create_today_what_graph
+from workflow.state import TodayWhatState
 
 
-class TravelPlanRequest(BaseModel):
-    travel_theme: str = Field(..., min_length=1, description="여행 주제")
-    travel_days: Optional[int] = Field(default=5, ge=1, le=30)
-    budget: Optional[int] = Field(default=None, ge=0)
-    departure_city: str = Field(default="서울")
+class TodayWhatPlanRequest(BaseModel):
+    user_query: str = Field(..., min_length=1, description="사용자 자연어 요청")
+    region: str = Field(default="서울", min_length=1)
+    companion: str = Field(default="상관없음")
+    weather: str = Field(default="상관없음")
+    time_slot: str = Field(default="상관없음")
+    budget_level: str = Field(default="상관없음")
+    mobility: str = Field(default="상관없음")
     enable_rag: bool = Field(default=True)
-    max_flight_search_attempts: int = Field(default=3, ge=1, le=10)
+    thread_id: Optional[str] = Field(default=None)
 
 
-class TravelPlanResponse(BaseModel):
+class TodayWhatPlanResponse(BaseModel):
     status: str
     result: Dict[str, Any]
 
 
 app = FastAPI(
-    title="Travel Agentic Service API",
-    version="1.0.0",
-    description="LangGraph 기반 여행 계획 생성 API",
+    title="오늘 뭐해? API",
+    version="2.0.0",
+    description="상황형 액티비티 추천과 일정 구성을 위한 LangGraph API",
 )
 
 
@@ -37,33 +40,32 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/api/plan", response_model=TravelPlanResponse)
-def create_plan(payload: TravelPlanRequest) -> TravelPlanResponse:
-    initial_state = TravelState(
-        travel_theme=payload.travel_theme,
-        travel_days=payload.travel_days,
-        budget=payload.budget if payload.budget and payload.budget > 0 else None,
-        departure_city=payload.departure_city,
-        recommended_cities=[],
-        selected_city=None,
-        selected_city_index=0,
-        flight_info=None,
-        flight_available=False,
-        flight_unavailability_reason=None,
-        flight_search_attempts=0,
-        max_flight_search_attempts=payload.max_flight_search_attempts,
-        itinerary=None,
+@app.post("/api/plan", response_model=TodayWhatPlanResponse)
+def create_plan(payload: TodayWhatPlanRequest) -> TodayWhatPlanResponse:
+    initial_state = TodayWhatState(
+        user_query=payload.user_query,
+        region=payload.region,
+        companion=payload.companion,
+        weather=payload.weather,
+        time_slot=payload.time_slot,
+        budget_level=payload.budget_level,
+        mobility=payload.mobility,
+        parsed_context={},
+        search_queries=[],
+        raw_search_results=[],
+        curated_candidates=[],
+        final_plan={},
         decision_memory=[],
-        constraints_memory={},
-        current_step="",
+        constraints_memory={"retry_attempts": "0", "broaden_search": "false"},
         messages=[],
+        current_step="",
         completed=False,
     )
 
-    graph = create_travel_graph(enable_rag=payload.enable_rag)
-    thread_id = f"api-{uuid.uuid4()}"
+    graph = create_today_what_graph(enable_rag=payload.enable_rag)
+    thread_id = payload.thread_id or f"api-{uuid.uuid4()}"
     result = graph.invoke(
         initial_state,
         config={"configurable": {"thread_id": thread_id}},
     )
-    return TravelPlanResponse(status="ok", result=result)
+    return TodayWhatPlanResponse(status="ok", result=result)
