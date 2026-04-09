@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}=== AI Debate Arena - Prototype 06 ===${NC}"
+echo -e "${BLUE}=== 오늘 뭐해? - 상황형 액티비티 추천 서비스 ===${NC}"
 
 # venv가 없으면 생성 (Python 3.12 사용)
 if [ ! -d "venv" ]; then
@@ -22,5 +22,5 @@ echo -e "${GREEN}Installing dependencies...${NC}"
 pip3 install -r requirements.txt
 
 # Streamlit 실행
-echo -e "${GREEN}Starting Streamlit app...${NC}"
+echo -e "${GREEN}Starting 오늘 뭐해? Streamlit app...${NC}"
 streamlit run app/main.py
