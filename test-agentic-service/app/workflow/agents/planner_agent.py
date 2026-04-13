@@ -100,6 +100,18 @@ def _booking_links(recommendations: List[Dict[str, object]]) -> List[Dict[str, s
     return links[:5]
 
 
+def _context_note(parsed_context: Dict[str, object]) -> str:
+    search_context = str(parsed_context.get("search_context", "") or "")
+    if not search_context:
+        return ""
+    lines = [line.strip() for line in search_context.splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("[") or line.startswith("출처:") or "===" in line:
+            continue
+        return f"검색 컨텍스트 반영: {line[:110].rstrip()}"
+    return ""
+
+
 def _fallback_plan(parsed_context: Dict[str, object]) -> Dict[str, object]:
     region = _normalize_text(str(parsed_context.get("region", "서울"))) or "서울"
     companion = _normalize_text(str(parsed_context.get("companion", "상관없음")))
@@ -217,6 +229,9 @@ class PlannerAgent:
                     f"현재 시간대는 {time_slot or '상관없음'} 기준으로 묶었습니다.",
                 ],
             }
+            context_note = _context_note(parsed_context)
+            if context_note:
+                final_plan["notes"].append(context_note)
 
         final_plan.setdefault("summary", "")
         final_plan.setdefault("situation_tags", [])
@@ -244,6 +259,7 @@ class PlannerAgent:
                 "content": (
                     "추천 일정과 응답 구조를 최종 정리했습니다. "
                     f"| role_prompt={prompt_bundle['role']} few_shot={len(prompt_bundle['few_shot_examples'])}"
+                    + (" | search_context 반영" if parsed_context.get("search_context") else "")
                 ),
             }
         )

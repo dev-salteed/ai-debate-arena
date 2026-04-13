@@ -30,6 +30,7 @@ class PlannerAndResponseTests(unittest.TestCase):
                 "budget_level": "보통",
                 "mobility": "대중교통",
                 "keywords": ["전시", "카페"],
+                "search_context": "=== 웹 검색 결과 ===\n성수 실내 데이트에 좋은 전시 공간과 카페가 함께 언급됩니다.",
             },
             "search_queries": [],
             "raw_search_results": [],
@@ -57,6 +58,7 @@ class PlannerAndResponseTests(unittest.TestCase):
         self.assertGreaterEqual(len(final_plan["timeline"]), 3)
         self.assertIn("PLANNER_PROMPT", "\n".join(new_state["decision_memory"]))
         self.assertIn("role_prompt=Planner", new_state["messages"][-1]["content"])
+        self.assertTrue(any("검색 컨텍스트 반영" in note for note in final_plan["notes"]))
 
     def test_response_composer_fills_missing_structure(self):
         composer = ResponseComposerAgent(enable_rag=True)

@@ -79,6 +79,13 @@ class RetrievalAndCurationTests(unittest.TestCase):
             "budget_level": "보통",
             "mobility": "대중교통",
             "parsed_context": {"region": "성수", "companion": "썸", "weather": "비", "budget_level": "보통"},
+            "parsed_context": {
+                "region": "성수",
+                "companion": "썸",
+                "weather": "비",
+                "budget_level": "보통",
+                "search_context": "=== 웹 검색 결과 ===\n성수 실내 데이트에 좋은 전시 공간과 조용한 카페를 우선 추천합니다.",
+            },
             "search_queries": ["성수 비 오는 날 데이트 추천"],
             "raw_search_results": [
                 {
@@ -114,6 +121,8 @@ class RetrievalAndCurationTests(unittest.TestCase):
         self.assertGreaterEqual(len(new_state["curated_candidates"]), 3)
         self.assertLessEqual(len(new_state["curated_candidates"]), 5)
         self.assertIn("why_fit", new_state["curated_candidates"][0])
+        self.assertIn("검색 결과", new_state["curated_candidates"][0]["why_fit"])
+        self.assertTrue(new_state["parsed_context"]["search_context_applied_to_curation"])
         self.assertEqual(new_state["current_step"], "CURATOR")
 
 

@@ -127,6 +127,17 @@ def _source_url(result: Dict[str, object]) -> str:
     return _normalize_text(str(result.get("href") or ""))
 
 
+def _context_snippet(parsed_context: Dict[str, object], fallback_body: str) -> str:
+    search_context = str(parsed_context.get("search_context", "") or "")
+    if search_context:
+        lines = [line.strip() for line in search_context.splitlines() if line.strip()]
+        for line in lines:
+            if line.startswith("[") or line.startswith("출처:") or "===" in line:
+                continue
+            return f"검색 결과 반영: {line[:80].rstrip()}"
+    return fallback_body[:90].rstrip() if fallback_body else ""
+
+
 def _make_recommendation(
     result: Dict[str, object],
     parsed_context: Dict[str, object],
@@ -145,8 +156,9 @@ def _make_recommendation(
         f"{region}에서 바로 찾아보기 좋은 {category} 코스",
         _best_for(companion, weather, category),
     ]
-    if body:
-        why_fit_bits.append(body[:90].rstrip())
+    context_snippet = _context_snippet(parsed_context, body)
+    if context_snippet:
+        why_fit_bits.append(context_snippet)
 
     return {
         "name": title,
@@ -228,6 +240,7 @@ class CuratorAgent:
         new_state["curated_candidates"] = recommendations
         parsed_context["curated_count"] = len(recommendations)
         parsed_context["has_booking_link"] = has_booking_link
+        parsed_context["search_context_applied_to_curation"] = bool(parsed_context.get("search_context"))
         new_state["parsed_context"] = parsed_context
         constraints_memory["candidate_count"] = str(len(recommendations))
         constraints_memory["has_booking_link"] = "true" if has_booking_link else "false"
@@ -242,6 +255,7 @@ class CuratorAgent:
                 "content": (
                     f"추천 후보 {len(recommendations)}개 정리 완료"
                     + (" (예약 링크 포함)" if has_booking_link else "")
+                    + (" | search_context 반영" if parsed_context.get("search_context") else "")
                 ),
             }
         )
@@ -251,6 +265,8 @@ class CuratorAgent:
             "CURATOR: "
             f"candidates={len(recommendations)}, booking_link={has_booking_link}"
         )
+        if parsed_context.get("search_context"):
+            decision_memory.append("CURATOR_CONTEXT: search_context_applied=true")
         new_state["decision_memory"] = decision_memory[-12:]
 
         log_agent_output(self.logger, self.role, recommendations)
