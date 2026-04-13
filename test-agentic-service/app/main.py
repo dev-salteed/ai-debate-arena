@@ -1061,7 +1061,6 @@ def _run_workflow(
         st.session_state.today_what_continued_last_run = False
 
     st.session_state.today_what_thread_id = thread_id
-    st.session_state.today_what_thread_id_input = thread_id
 
     graph = get_or_create_workflow_graph(enable_rag=enable_rag)
     return graph.invoke(initial_state, config={"configurable": {"thread_id": thread_id}})
@@ -1071,7 +1070,6 @@ def _reset_current_result() -> None:
     st.session_state.today_what_plan_state = None
     st.session_state.today_what_messages = []
     st.session_state.today_what_thread_id = None
-    st.session_state.today_what_thread_id_input = ""
     st.session_state.today_what_logs = []
     st.session_state.today_what_continued_last_run = False
 
