@@ -13,8 +13,10 @@ from workflow.agents.retriever_agent import RetrieverAgent
 
 
 class RetrievalAndCurationTests(unittest.TestCase):
+    @patch("workflow.agents.retriever_agent.invoke_with_tool_calls")
     @patch("workflow.agents.retriever_agent.search_outing_candidates")
-    def test_retriever_builds_multiple_queries_and_collects_results(self, mock_search_outing_candidates):
+    def test_retriever_builds_multiple_queries_and_collects_results(self, mock_search_outing_candidates, mock_invoke_with_tool_calls):
+        mock_invoke_with_tool_calls.return_value = "웹/벡터 통합 컨텍스트"
         mock_search_outing_candidates.return_value = [
             {
                 "title": "성수 전시 추천",
@@ -61,6 +63,10 @@ class RetrievalAndCurationTests(unittest.TestCase):
         self.assertGreaterEqual(len(new_state["search_queries"]), 3)
         self.assertEqual(len(new_state["raw_search_results"]), 1)
         self.assertEqual(new_state["constraints_memory"]["has_booking_link"], "true")
+        self.assertEqual(new_state["constraints_memory"]["search_context_mode"], "tool_calling")
+        self.assertEqual(new_state["parsed_context"]["search_context"], "웹/벡터 통합 컨텍스트")
+        self.assertTrue(new_state["parsed_context"]["search_strategy"]["tool_calling_used"])
+        mock_invoke_with_tool_calls.assert_called_once()
 
     def test_curator_returns_three_to_five_recommendations(self):
         agent = CuratorAgent(enable_rag=True)

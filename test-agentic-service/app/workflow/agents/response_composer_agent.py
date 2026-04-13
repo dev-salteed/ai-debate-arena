@@ -6,6 +6,7 @@ import json
 from typing import Dict, List
 
 from utils.logger import log_agent_input, log_agent_output, setup_logger
+from workflow.agents.prompt_assets import build_response_composer_prompt
 from workflow.agents.response_guard import extract_json_text, missing_required_keys, parse_json
 from workflow.state import AgentType, TodayWhatState
 
@@ -166,14 +167,38 @@ class ResponseComposerAgent:
         if not isinstance(final_plan, dict):
             final_plan = {}
 
+        prompt_bundle = build_response_composer_prompt(
+            parsed_context=dict(new_state.get("parsed_context", {})),
+            recommendation_count=len(list(final_plan.get("recommendations", []) or [])),
+        )
         final_plan = _normalize_final_plan(final_plan, new_state)
+        final_plan["prompt_strategy"] = {
+            "role": str(prompt_bundle["role"]),
+            "few_shot_count": len(prompt_bundle["few_shot_examples"]),
+            "required_keys": list(_REQUIRED_KEYS),
+            "applied": True,
+        }
         new_state["final_plan"] = final_plan
         new_state["current_step"] = self.role
         new_state["completed"] = True
 
         messages = list(new_state.get("messages", []))
-        messages.append({"role": self.role, "content": "최종 응답 포맷 정리 완료"})
+        messages.append(
+            {
+                "role": self.role,
+                "content": (
+                    "최종 응답 포맷 정리 완료 "
+                    f"| role_prompt={prompt_bundle['role']} few_shot={len(prompt_bundle['few_shot_examples'])}"
+                ),
+            }
+        )
         new_state["messages"] = messages[-20:]
+        decision_memory = list(new_state.get("decision_memory", []))
+        decision_memory.append(
+            "RESPONSE_COMPOSER_PROMPT: "
+            f"role={prompt_bundle['role']}, few_shot={len(prompt_bundle['few_shot_examples'])}"
+        )
+        new_state["decision_memory"] = decision_memory[-12:]
 
         log_agent_output(self.logger, self.role, final_plan)
         return new_state

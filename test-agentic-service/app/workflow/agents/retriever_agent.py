@@ -6,12 +6,14 @@ import re
 from typing import Dict, List, Sequence
 
 from utils.logger import log_agent_input, log_agent_output, setup_logger
+from workflow.agents.prompt_assets import build_retriever_prompt
+from workflow.agents.tool_runner import invoke_with_tool_calls
 from workflow.state import AgentType, TodayWhatState
 
 try:
-    from retrieval.search_service import search_outing_candidates
+    from retrieval.search_service import search_outing_candidates, search_outing_context_tool, search_with_context
 except ModuleNotFoundError:  # pragma: no cover - import path fallback
-    from app.retrieval.search_service import search_outing_candidates
+    from app.retrieval.search_service import search_outing_candidates, search_outing_context_tool, search_with_context
 
 
 def _normalize_text(text: str) -> str:
@@ -108,6 +110,24 @@ class RetrieverAgent:
             if value and value != "상관없음"
         ]
         context_terms.extend(parsed_context.get("keywords", []) or [])
+        prompt_bundle = build_retriever_prompt(parsed_context, queries[0] if queries else "")
+
+        retrieval_context = ""
+        retrieval_mode = "direct_context_search"
+        primary_query = queries[0] if queries else ""
+        if primary_query:
+            try:
+                retrieval_context = invoke_with_tool_calls(
+                    system_prompt=str(prompt_bundle["system_prompt"]),
+                    user_prompt=str(prompt_bundle["user_prompt"]),
+                    tools=[search_outing_context_tool],
+                    logger=self.logger,
+                    max_iterations=2,
+                )
+                retrieval_mode = "tool_calling"
+            except Exception as exc:  # pragma: no cover - runtime safety
+                self.logger.warning(f"[Retriever fallback] tool calling unavailable: {exc}")
+                retrieval_context = search_with_context(primary_query, max_results=4)
 
         search_results = search_outing_candidates(
             queries=queries,
@@ -129,11 +149,19 @@ class RetrieverAgent:
         new_state["raw_search_results"] = search_results
         parsed_context["result_count"] = len(search_results)
         parsed_context["query_count"] = len(queries)
+        parsed_context["search_context"] = retrieval_context
+        parsed_context["search_strategy"] = {
+            "role": str(prompt_bundle["role"]),
+            "few_shot_count": len(prompt_bundle["few_shot_examples"]),
+            "tool_calling_used": retrieval_mode == "tool_calling",
+            "context_mode": retrieval_mode,
+        }
         new_state["parsed_context"] = parsed_context
         constraints_memory["broaden_search"] = "true" if broaden_search else "false"
         constraints_memory["retry_attempts"] = constraints_memory.get("retry_attempts", "0")
         constraints_memory["has_booking_link"] = "true" if _has_booking_url(search_results) else "false"
         constraints_memory["result_count"] = str(len(search_results))
+        constraints_memory["search_context_mode"] = retrieval_mode
         new_state["constraints_memory"] = constraints_memory
         new_state["current_step"] = self.role
 
@@ -142,7 +170,9 @@ class RetrieverAgent:
             {
                 "role": self.role,
                 "content": (
-                    f"검색 쿼리 {len(queries)}개 생성, 후보 {len(search_results)}개 수집"
+                    f"검색 쿼리 {len(queries)}개 생성, 후보 {len(search_results)}개 수집 | "
+                    f"role_prompt={prompt_bundle['role']} few_shot={len(prompt_bundle['few_shot_examples'])} "
+                    f"context_mode={retrieval_mode}"
                 ),
             }
         )
@@ -151,6 +181,10 @@ class RetrieverAgent:
         decision_memory.append(
             "RETRIEVER: "
             f"queries={len(queries)}, results={len(search_results)}, broaden={broaden_search}"
+        )
+        decision_memory.append(
+            "RETRIEVER_TOOLING: "
+            f"role={prompt_bundle['role']}, few_shot={len(prompt_bundle['few_shot_examples'])}, mode={retrieval_mode}"
         )
         new_state["decision_memory"] = decision_memory[-12:]
 

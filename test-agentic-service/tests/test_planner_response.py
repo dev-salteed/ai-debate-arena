@@ -87,6 +87,8 @@ class PlannerAndResponseTests(unittest.TestCase):
         self.assertGreaterEqual(len(final_plan["recommendations"]), 3)
         self.assertGreaterEqual(len(final_plan["timeline"]), 3)
         self.assertIn("follow_up_prompt", final_plan)
+        self.assertEqual(final_plan["prompt_strategy"]["role"], "Response Composer")
+        self.assertIn("RESPONSE_COMPOSER_PROMPT", "\n".join(new_state["decision_memory"]))
 
 
 if __name__ == "__main__":

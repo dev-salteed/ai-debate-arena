@@ -66,3 +66,64 @@ def build_planner_prompt(parsed_context: Dict[str, object], recommendation_count
         "few_shot_examples": few_shot_examples,
         "user_prompt": user_prompt,
     }
+
+
+def build_retriever_prompt(parsed_context: Dict[str, object], query: str) -> Dict[str, object]:
+    system_prompt = """You are the Retriever for '오늘 뭐해?'.
+- Use the provided search tool to gather up-to-date outing context.
+- Prefer practical and location-aware information over generic summaries.
+- Look for signals about indoor suitability, reservations, and visitability.
+- Keep the final answer short because downstream ranking logic will do detailed scoring."""
+
+    few_shot_examples: List[Dict[str, str]] = [
+        {
+            "input": "query=성수 비 오는 날 데이트 전시 카페 추천",
+            "output": "실내 데이트와 예약 가능성이 보이는 전시/카페 중심 컨텍스트 요약",
+        },
+        {
+            "input": "query=홍대 혼자 오후 카페 전시 추천",
+            "output": "혼자 머물기 좋은 카페/전시와 이동 부담이 낮은 권역 정보 요약",
+        },
+    ]
+
+    user_prompt = f"parsed_context={parsed_context}\nprimary_query={query}\n반드시 search_outing_context 도구를 먼저 고려하세요."
+
+    return {
+        "role": "Retriever",
+        "system_prompt": system_prompt,
+        "few_shot_examples": few_shot_examples,
+        "user_prompt": user_prompt,
+    }
+
+
+def build_response_composer_prompt(
+    parsed_context: Dict[str, object],
+    recommendation_count: int,
+) -> Dict[str, object]:
+    system_prompt = """You are the Response Composer for '오늘 뭐해?'.
+- Normalize the response into a stable structure even when user input varies.
+- Always preserve the required output keys and keep the shape UI-friendly.
+- If information is sparse, prefer safe fallback structure over omission."""
+
+    few_shot_examples: List[Dict[str, str]] = [
+        {
+            "input": "region=서울, weather=비, recommendations=2",
+            "output": "required keys filled; fallback recommendation added; timeline and booking_links normalized",
+        },
+        {
+            "input": "region=부산, companion=친구, recommendations=5",
+            "output": "summary/timeline/notes/follow_up_prompt all preserved with stable schema",
+        },
+    ]
+
+    user_prompt = (
+        f"parsed_context={parsed_context}; recommendation_count={recommendation_count}; "
+        "required_keys=summary,situation_tags,recommendations,timeline,route_summary,booking_links,notes,follow_up_prompt"
+    )
+
+    return {
+        "role": "Response Composer",
+        "system_prompt": system_prompt,
+        "few_shot_examples": few_shot_examples,
+        "user_prompt": user_prompt,
+    }
