@@ -55,6 +55,8 @@ class PlannerAndResponseTests(unittest.TestCase):
         self.assertIn("route_summary", final_plan)
         self.assertIn("booking_links", final_plan)
         self.assertGreaterEqual(len(final_plan["timeline"]), 3)
+        self.assertIn("PLANNER_PROMPT", "\n".join(new_state["decision_memory"]))
+        self.assertIn("role_prompt=Planner", new_state["messages"][-1]["content"])
 
     def test_response_composer_fills_missing_structure(self):
         composer = ResponseComposerAgent(enable_rag=True)

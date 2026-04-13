@@ -39,6 +39,9 @@ class ContextAnalyzerTests(unittest.TestCase):
         self.assertEqual(new_state["companion"], "썸")
         self.assertEqual(new_state["weather"], "비")
         self.assertIn("전시", new_state["parsed_context"]["keywords"])
+        self.assertEqual(new_state["parsed_context"]["prompt_strategy"]["role"], "Context Analyzer")
+        self.assertEqual(new_state["parsed_context"]["prompt_strategy"]["few_shot_count"], 2)
+        self.assertIn("CONTEXT_ANALYZER_PROMPT", "\n".join(new_state["decision_memory"]))
         self.assertEqual(new_state["current_step"], "CONTEXT_ANALYZER")
 
 

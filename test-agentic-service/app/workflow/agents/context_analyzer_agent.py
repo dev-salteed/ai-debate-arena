@@ -6,6 +6,7 @@ import re
 from typing import Dict, List
 
 from utils.logger import log_agent_input, log_agent_output, setup_logger
+from workflow.agents.prompt_assets import build_context_analyzer_prompt
 from workflow.state import AgentType, TodayWhatState
 
 _REGION_KEYWORDS = (
@@ -141,6 +142,17 @@ class ContextAnalyzerAgent:
         decision_memory = list(new_state.get("decision_memory", []))
 
         user_query = _normalize_text(new_state.get("user_query", ""))
+        prompt_bundle = build_context_analyzer_prompt(
+            user_query=user_query,
+            defaults={
+                "region": str(new_state.get("region", "서울")),
+                "companion": str(new_state.get("companion", "상관없음")),
+                "weather": str(new_state.get("weather", "상관없음")),
+                "time_slot": str(new_state.get("time_slot", "상관없음")),
+                "budget_level": str(new_state.get("budget_level", "상관없음")),
+                "mobility": str(new_state.get("mobility", "상관없음")),
+            },
+        )
         region = _pick_region(user_query, new_state.get("region", "서울"))
         companion = _pick_companion(user_query, new_state.get("companion", "상관없음"))
         weather = _pick_weather(user_query, new_state.get("weather", "상관없음"))
@@ -166,6 +178,11 @@ class ContextAnalyzerAgent:
                 ),
                 "must_have": ["3~5개 추천", "timeline", "route_summary", "booking_links"],
                 "prefer_indoor": weather in {"비", "눈", "흐림"},
+                "prompt_strategy": {
+                    "role": str(prompt_bundle["role"]),
+                    "few_shot_count": len(prompt_bundle["few_shot_examples"]),
+                    "applied": True,
+                },
             }
         )
 
@@ -184,7 +201,8 @@ class ContextAnalyzerAgent:
                 "role": self.role,
                 "content": (
                     f"상황 분석 완료: 지역={region}, 동행={companion}, 날씨={weather}, "
-                    f"시간대={time_slot}, 예산={budget_level}, 이동={mobility}"
+                    f"시간대={time_slot}, 예산={budget_level}, 이동={mobility} | "
+                    f"role_prompt={prompt_bundle['role']} few_shot={len(prompt_bundle['few_shot_examples'])}"
                 ),
             }
         )
@@ -193,6 +211,10 @@ class ContextAnalyzerAgent:
         decision_memory.append(
             "CONTEXT_ANALYZER: "
             f"region={region}, companion={companion}, weather={weather}, time_slot={time_slot}"
+        )
+        decision_memory.append(
+            "CONTEXT_ANALYZER_PROMPT: "
+            f"role={prompt_bundle['role']}, few_shot={len(prompt_bundle['few_shot_examples'])}"
         )
         new_state["decision_memory"] = decision_memory[-12:]
 

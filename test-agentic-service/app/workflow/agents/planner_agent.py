@@ -7,6 +7,7 @@ import re
 from typing import Dict, List
 
 from utils.logger import log_agent_input, log_agent_output, setup_logger
+from workflow.agents.prompt_assets import build_planner_prompt
 from workflow.state import AgentType, TodayWhatState
 
 
@@ -170,6 +171,7 @@ class PlannerAgent:
         new_state = deepcopy(state)
         parsed_context = dict(new_state.get("parsed_context", {}))
         recommendations = list(new_state.get("curated_candidates", []) or [])
+        prompt_bundle = build_planner_prompt(parsed_context, len(recommendations))
 
         if len(recommendations) < 3:
             final_plan = _fallback_plan(parsed_context)
@@ -236,8 +238,22 @@ class PlannerAgent:
         new_state["current_step"] = self.role
 
         messages = list(new_state.get("messages", []))
-        messages.append({"role": self.role, "content": "추천 일정과 응답 구조를 최종 정리했습니다."})
+        messages.append(
+            {
+                "role": self.role,
+                "content": (
+                    "추천 일정과 응답 구조를 최종 정리했습니다. "
+                    f"| role_prompt={prompt_bundle['role']} few_shot={len(prompt_bundle['few_shot_examples'])}"
+                ),
+            }
+        )
         new_state["messages"] = messages[-20:]
+        decision_memory = list(new_state.get("decision_memory", []))
+        decision_memory.append(
+            "PLANNER_PROMPT: "
+            f"role={prompt_bundle['role']}, few_shot={len(prompt_bundle['few_shot_examples'])}"
+        )
+        new_state["decision_memory"] = decision_memory[-12:]
         new_state["completed"] = True
 
         log_agent_output(self.logger, self.role, final_plan)
